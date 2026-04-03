@@ -150,7 +150,7 @@ as $$
     c.id,
     c.name,
     c.partylist,
-    count(v.id) filter (where v.is_valid = true)
+    count(v.id) filter (where v.is_valid = true) as vote_count
   from   public."Positions"  p
   join   public."Candidates" c  on c.position_id = p.id
   left join public."Votes"   v  on v.candidate_id = c.id
