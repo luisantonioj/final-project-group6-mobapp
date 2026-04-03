@@ -1,4 +1,7 @@
 {
   "name": "animo-quorum",
-  "slug": "animo-quorum"
+  "slug": "animo-quorum",
+  "plugins": [
+    "expo-secure-store"
+  ]
 }
