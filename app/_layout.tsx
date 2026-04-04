@@ -1,5 +1,7 @@
-import { QueryProvider } from './providers/QueryProvider';
+// app/_layout.tsx
 import { useEffect } from 'react';
+import { Slot } from 'expo-router';
+import { QueryProvider } from './providers/QueryProvider';
 import { supabase } from './utils/supabase';
 import { useAuthStore } from './stores/authStore';
 
@@ -19,11 +21,11 @@ export default function RootLayout() {
       }
     );
     return () => subscription.unsubscribe();
-  }, []);
+  }, [clear, setSession]); // Added Zustand actions to dependency array
 
   return (
     <QueryProvider>
-      {/* navigation stack goes here */}
+      <Slot /> {/* Slot acts as the placeholder for all app screens */}
     </QueryProvider>
   );
 }
