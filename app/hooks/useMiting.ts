@@ -1,3 +1,4 @@
+// app/hooks/useMiting.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '../utils/supabase';
@@ -7,7 +8,6 @@ export function useMitingQuestions() {
   const qc = useQueryClient();
 
   // Realtime subscription: invalidate when a question is approved or upvoted
-  // Only used on screens with a small number of concurrent users (admin)
   useEffect(() => {
     const channel = supabase
       .channel('miting-questions')
@@ -34,7 +34,10 @@ export function useMitingQuestions() {
         .select('*')
         .eq('is_approved', true)
         .order('upvote_count', { ascending: false });
+        
       if (error) throw error;
+      if (!data) return []; 
+      
       return data;
     },
   });
@@ -44,10 +47,11 @@ export function useMitingQuestions() {
 export function useUpvoteQuestion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (questionId: string) => {
+    mutationFn: async ({ questionId, studentId }: { questionId: string; studentId: string }) => {
       const { error } = await supabase
         .from('QuestionUpvotes')
-        .insert({ question_id: questionId });
+        .insert({ question_id: questionId, student_id: studentId });
+        
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['miting'] }),
@@ -58,11 +62,13 @@ export function useUpvoteQuestion() {
 export function useRemoveUpvote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (questionId: string) => {
+    mutationFn: async ({ questionId, studentId }: { questionId: string; studentId: string }) => {
       const { error } = await supabase
         .from('QuestionUpvotes')
         .delete()
-        .eq('question_id', questionId);
+        .eq('question_id', questionId)
+        .eq('student_id', studentId);
+        
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['miting'] }),
