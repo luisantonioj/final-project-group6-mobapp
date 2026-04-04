@@ -3,7 +3,7 @@ import { create } from 'zustand';
 interface UIState {
   activeModal:       string | null;
   selectedCandidate: string | null;  // candidateId for profile modal
-  openModal:  (name: string, candidateId?: string) => void;
+  openModal:  (name: string, candidateId?: string | null) => void;
   closeModal: () => void;
 }
 
