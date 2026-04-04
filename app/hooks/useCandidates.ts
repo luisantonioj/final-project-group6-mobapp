@@ -11,6 +11,8 @@ export function useCandidates() {
         .select('id, name, partylist, position_id, photo_url, Positions(position_name)')
         .order('position_id');
       if (error) throw error;
+      if (!data) return [];
+
       return data;
     },
     staleTime: Infinity,
@@ -28,6 +30,8 @@ export function useCandidate(id: string) {
         .eq('id', id)
         .single();
       if (error) throw error;
+      if (!data) throw new Error('Candidate not found');
+
       return data;
     },
     enabled: !!id,
@@ -43,7 +47,11 @@ export function useDeleteCandidate() {
         p_candidate_id: candidateId,
       });
       if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      const result = data as { success: boolean; error?: string } | null;
+      
+      if (result && !result.success) {
+        throw new Error(result.error || 'Failed to delete candidate');
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['candidates'] }),
   });
