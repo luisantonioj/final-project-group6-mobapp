@@ -1,3 +1,4 @@
+// app/hooks/useVotes.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabase';
 
@@ -16,9 +17,13 @@ export function useCastVote() {
         p_candidate_id: candidateId,
         p_position_id:  positionId,
       });
+      
       if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      return data;
+      
+      const result = data as { success: boolean; error?: string } | null;
+      if (result && !result.success) throw new Error(result.error || 'Failed to cast vote');
+      
+      return result;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['votes', 'tally'] }),
   });
@@ -30,7 +35,10 @@ export function useVoteTally() {
     queryKey: ['votes', 'tally'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_vote_tally');
+      
       if (error) throw error;
+      if (!data) return []; 
+      
       return data;
     },
   });
@@ -44,7 +52,10 @@ export function useLiveResults() {
     queryKey: ['votes', 'live'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_live_results');
+      
       if (error) throw error;
+      if (!data) return []; 
+      
       return data;
     },
     refetchInterval: 10_000, // poll every 10 seconds
@@ -60,8 +71,11 @@ export function useInvalidateVote() {
       const { data, error } = await supabase.rpc('invalidate_vote', {
         p_vote_id: voteId,
       });
+      
       if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      
+      const result = data as { success: boolean; error?: string } | null;
+      if (result && !result.success) throw new Error(result.error || 'Failed to invalidate vote');
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['votes', 'tally'] }),
   });
