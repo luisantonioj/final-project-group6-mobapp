@@ -28,6 +28,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "db:types": "supabase gen types typescript --linked > app/utils/database.types.ts",
+    "db:reset": "supabase db reset",
+    "db:push":  "supabase db push"
   }
 }
