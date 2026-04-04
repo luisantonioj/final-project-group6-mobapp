@@ -1,4 +1,3 @@
-```markdown
 # AnimoQuorum 🗳️
 
 AnimoQuorum is the official mobile voting platform for the DLSL COMELEC, engineered to modernize student elections and maximize voter turnout. Powered by React Native and Supabase, the application features secure real-time voting, an interactive announcement feed, and a community-driven *Miting de Avance* Q&A system.
@@ -68,5 +67,3 @@ npm run db:types
 * **Atomic Transactions:** All critical mutations (Casting a Vote, Deleting a Candidate) are handled entirely server-side via **PostgreSQL RPCs** to prevent race conditions and ensure data integrity.
 * **Session Encryption:** User session tokens are secured using AES encryption via `expo-secure-store` and `AsyncStorage` to bypass standard storage limits.
 ```
-
-***
