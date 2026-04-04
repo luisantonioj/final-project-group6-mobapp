@@ -66,4 +66,3 @@ npm run db:types
 * **Row Level Security (RLS):** Enabled on all tables. Students can only insert votes under their own authenticated ID, and can never read the `Votes` table directly.
 * **Atomic Transactions:** All critical mutations (Casting a Vote, Deleting a Candidate) are handled entirely server-side via **PostgreSQL RPCs** to prevent race conditions and ensure data integrity.
 * **Session Encryption:** User session tokens are secured using AES encryption via `expo-secure-store` and `AsyncStorage` to bypass standard storage limits.
-```
