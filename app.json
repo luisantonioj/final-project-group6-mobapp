@@ -1,6 +1,9 @@
 {
   "name": "animo-quorum",
   "slug": "animo-quorum",
+  "android" : {
+    "softwareKeyboardLayoutMode": "adjustResize"
+  },
   "plugins": [
     "expo-secure-store",
     "expo-router"

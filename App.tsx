@@ -1,39 +1,55 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+
+import DashboardScreen from './app/screens/DashboardScreen/DashboardScreen';
+import { QueryProvider } from './app/providers/QueryProvider';
+import { supabase } from './app/utils/supabase';
+import { useAuthStore } from './app/stores/authStore';
 
 export default function App() {
+  const { setSession, clear } = useAuthStore();
+
+  useEffect(() => {
+    // Restore session on app launch
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    // Listen for sign in / sign out
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session) setSession(session);
+        else clear();
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [clear, setSession]);
+
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.heading}>AnimoQuorum 🗳️</Text>
-          <Text style={styles.subtitle}>Backend Setup Phase</Text>
-        </View>
-      </SafeAreaView>
+
+      {/* Ensures status bar is visible and styled */}
+      <StatusBar style="light" />
+
+      <QueryProvider>
+
+        {/* Prevent keyboard from covering inputs */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+
+          {/* Tap outside inputs to dismiss keyboard */}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <DashboardScreen />
+          </TouchableWithoutFeedback>
+
+        </KeyboardAvoidingView>
+
+      </QueryProvider>
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#fff',
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#0F6E56', // A nice DLSL Green
-  },
-  subtitle: {
-    fontSize: 18,
-    marginTop: 8,
-    color: '#666',
-  },
-});
