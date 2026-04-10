@@ -41,8 +41,8 @@ class LargeSecureStore {
 }
 
 export const supabase = createClient<Database>(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',   //Delete in backend integration
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key',        //Delete in backend integration
   {
     auth: {
       storage: new LargeSecureStore(),
