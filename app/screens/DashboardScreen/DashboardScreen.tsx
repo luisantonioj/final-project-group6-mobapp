@@ -496,12 +496,11 @@ const AnnouncementFeed: React.FC = () => {
       </View>
 
       {/* Post list — scrollEnabled=false because the parent FlatList scrolls */}
-      <FlatList
-        data={filteredPosts}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => <PostCard post={item} />}
-        scrollEnabled={false}
-      />
+      <View>
+        {filteredPosts.map(post => (
+          <PostCard key={post.id} post={post} />
+        ))}
+      </View>
     </View>
   );
 };
@@ -548,11 +547,11 @@ export default function DashboardScreen() {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1, backgroundColor: COLORS.bg }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
             {/* ── App header ── */}
             <View style={screenStyles.header}>
@@ -572,14 +571,18 @@ export default function DashboardScreen() {
               data={SECTIONS}
               keyExtractor={item => item.type}
               renderItem={renderSection}
-              contentContainerStyle={screenStyles.scrollContent}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
               style={{ flex: 1, backgroundColor: COLORS.bg }}
+              keyboardDismissMode='on-drag'
+              keyboardShouldPersistTaps='handled'
+              contentContainerStyle={[
+                screenStyles.scrollContent,
+                { flexGrow: 1, paddingBottom: 0 },
+              ]}
             />
 
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
