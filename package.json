@@ -33,7 +33,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "db:types": "supabase gen types typescript --linked > app/utils/database.types.ts",
+    "db:types": "npx supabase gen types typescript --project-id zpquspdvoaevxwkiqstf | Out-File -Encoding utf8 app/utils/database.types.ts",    
     "db:reset": "supabase db reset",
     "db:push": "supabase db push"
   }
