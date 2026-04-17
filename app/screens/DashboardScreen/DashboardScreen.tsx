@@ -14,6 +14,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import {
   COLORS,
   screenStyles,
@@ -405,15 +406,36 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
 
       {/* ── Like & comment buttons ── */}
       <View style={feedStyles.postActions}>
-        <TouchableOpacity style={feedStyles.postAction} onPress={() => setLiked(v => !v)}>
-          <Text style={{ fontSize: 14 }}>{liked ? '💚' : '🤍'}</Text>
-          <Text style={feedStyles.postActionText}>{post.likes + (liked ? 1 : 0)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={feedStyles.postAction} onPress={() => setCommentsVisible(v => !v)}>
-          <Text style={{ fontSize: 13 }}>💬</Text>
-          <Text style={feedStyles.postActionText}>{comments.length} Comments</Text>
-        </TouchableOpacity>
-      </View>
+
+  {/* LIKE BUTTON */}
+      <TouchableOpacity
+        style={feedStyles.postAction}
+        onPress={() => setLiked(v => !v)}
+      >
+        <Ionicons
+          name={liked ? 'heart' : 'heart-outline'}
+          size={18}
+          color={liked ? '#22c55e' : '#ffffff'}
+        />
+
+        <Text style={feedStyles.postActionText}>
+          {post.likes + (liked ? 1 : 0)}
+        </Text>
+      </TouchableOpacity>
+
+      {/* COMMENT BUTTON */}
+      <TouchableOpacity
+        style={feedStyles.postAction}
+        onPress={() => setCommentsVisible(v => !v)}
+      >
+        <Ionicons name="chatbubble-outline" size={18} color="#ffffff" />
+
+        <Text style={feedStyles.postActionText}>
+          {comments.length} Comments
+        </Text>
+      </TouchableOpacity>
+
+</View>
 
       {/* ── Expandable comment thread ── */}
       {commentsVisible && (
@@ -460,10 +482,10 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
 
 type FeedTab = 'all' | 'announcements' | 'polls';
 
-const FEED_TABS: { key: FeedTab; label: string }[] = [
-  { key: 'all',           label: 'All' },
-  { key: 'announcements', label: '📢 Notices' },
-  { key: 'polls',         label: '📊 Polls' },
+const FEED_TABS: { key: FeedTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'all', label: 'All', icon: 'layers-outline' },
+  { key: 'announcements', label: 'Notices', icon: 'megaphone-outline' },
+  { key: 'polls', label: 'Polls', icon: 'bar-chart-outline' },
 ];
 
 const AnnouncementFeed: React.FC = () => {
@@ -478,30 +500,42 @@ const AnnouncementFeed: React.FC = () => {
 
   return (
     <View>
-      <Text style={shared.sectionTitle}>Feed</Text>
-
-      {/* Filter tabs */}
+      {/* Tabs */}
       <View style={feedStyles.tabRow}>
         {FEED_TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
-            style={[feedStyles.tab, activeTab === tab.key && feedStyles.tabActive]}
+            style={[
+              feedStyles.tab,
+              activeTab === tab.key && feedStyles.tabActive,
+            ]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[feedStyles.tabText, activeTab === tab.key && feedStyles.tabTextActive]}>
+            <Ionicons
+              name={tab.icon}
+              size={16}
+              color={activeTab === tab.key ? '#fff' : '#9ca3af'}
+              style={{ marginRight: 6 }}
+            />
+
+            <Text
+              style={[
+                feedStyles.tabText,
+                activeTab === tab.key && feedStyles.tabTextActive,
+              ]}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Post list — scrollEnabled=false because the parent FlatList scrolls */}
-      <FlatList
-        data={filteredPosts}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => <PostCard post={item} />}
-        scrollEnabled={false}
-      />
+      {/* Posts (THIS WAS MISSING) */}
+      <View>
+        {filteredPosts.map(post => (
+          <PostCard key={post.id} post={post} />
+        ))}
+      </View>
     </View>
   );
 };
@@ -548,11 +582,11 @@ export default function DashboardScreen() {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1, backgroundColor: COLORS.bg }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
             {/* ── App header ── */}
             <View style={screenStyles.header}>
@@ -561,9 +595,9 @@ export default function DashboardScreen() {
                 <Text style={screenStyles.headerSub}>DLSL COMELEC · SY 2025–2026</Text>
               </View>
               {/* TODO: replace with a real profile/avatar button */}
-              <View style={screenStyles.headerLive}>
-                <View style={screenStyles.headerLiveDot} />
-                <Text style={screenStyles.headerLiveText}>Profile</Text>
+              <View style={screenStyles.profileHeader}>
+                <Ionicons name="person-circle-outline" size={22} color="#fff" />
+                <Text style={screenStyles.profileBtn}>Profile</Text>
               </View>
             </View>
 
@@ -572,14 +606,18 @@ export default function DashboardScreen() {
               data={SECTIONS}
               keyExtractor={item => item.type}
               renderItem={renderSection}
-              contentContainerStyle={screenStyles.scrollContent}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
               style={{ flex: 1, backgroundColor: COLORS.bg }}
+              keyboardDismissMode='on-drag'
+              keyboardShouldPersistTaps='handled'
+              contentContainerStyle={[
+                screenStyles.scrollContent,
+                { flexGrow: 1, paddingBottom: 0 },
+              ]}
             />
 
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

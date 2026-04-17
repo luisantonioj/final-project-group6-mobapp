@@ -17,6 +17,7 @@ export const COLORS = {
   textSub: '#A3C5A3',
   red: '#EF4444',
   redFaint: 'rgba(239,68,68,0.12)',
+  whiteFaint: 'rgba(255,255,255,0.1)',
   amber: '#F59E0B',
   white: '#FFFFFF',
 };
@@ -138,6 +139,21 @@ export const screenStyles = StyleSheet.create({
     color: COLORS.red,
     letterSpacing: 1,
   },
+  profileBtn: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: 1,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.whiteFaint,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACE.sm,
+    paddingVertical: 4,
+  },
   scrollContent: {
     paddingHorizontal: SPACE.base,
     paddingTop: SPACE.lg,
@@ -231,23 +247,27 @@ export const feedStyles = StyleSheet.create({
     marginBottom: SPACE.md,
   },
   tab: {
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.xs + 2,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginRight: 8,
   },
+
   tabActive: {
     backgroundColor: COLORS.greenFaint,
-    borderColor: COLORS.green,
   },
+
   tabText: {
-    fontSize: FONT.sm,
-    fontWeight: '600',
-    color: COLORS.textMuted,
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '500',
   },
+
   tabTextActive: {
-    color: COLORS.green,
+    color: '#fff',
   },
   postCard: {
     backgroundColor: COLORS.bgCard,

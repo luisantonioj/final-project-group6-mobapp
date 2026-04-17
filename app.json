@@ -1,11 +1,18 @@
 {
-  "name": "animo-quorum",
-  "slug": "animo-quorum",
-  "android" : {
-    "softwareKeyboardLayoutMode": "adjustResize"
-  },
-  "plugins": [
-    "expo-secure-store",
-    "expo-router"
-  ]
+  "expo": {
+    "name": "animo-quorum",
+    "slug": "animo-quorum",
+    "android": {
+      "softwareKeyboardLayoutMode": "adjustResize"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-router"
+    ],
+    "splash": {
+      "image": "./assets/images/logoCrop.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#14532D"
+    }
+  }
 }
