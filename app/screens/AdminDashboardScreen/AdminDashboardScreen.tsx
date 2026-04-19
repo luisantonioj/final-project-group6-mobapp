@@ -1557,3 +1557,5 @@ const s = StyleSheet.create({
   },
   primaryBtnText: { color: C.bg, fontWeight: '800', fontSize: 15 },
 });
+
+export { AdminDashboardScreen };
