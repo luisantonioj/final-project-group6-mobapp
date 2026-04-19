@@ -10,18 +10,13 @@ import type { RootStackParamList } from './types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, role } = useAuthStore();
+  const { session, role, initialized } = useAuthStore();
 
-  // Show a spinner while Supabase resolves the persisted session.
-  // session starts as null; once getSession() resolves in App.tsx
-  // the store updates and this re-renders.
-  const isLoading = session === null && role === null;
-
-  // Distinguish "loading" from "truly logged out":
-  // Use a short initializing flag if needed, or rely on session being
-  // explicitly set to null after clear() is called.
-  // For now: if no session, show Auth.
-  if (isLoading) {
+  // Show a spinner only while App.tsx is waiting for getSession() to resolve.
+  // Once initialized = true, we know the real auth state and can route correctly.
+  // This prevents the login screen from flashing on app launch for logged-in users,
+  // and also prevents the spinner from showing forever when the user is logged out.
+  if (!initialized) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#0F6E56" />

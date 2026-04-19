@@ -1,3 +1,9 @@
-// Add this line at the very bottom of the file:
-// export { BallotScreen };
-// (or change `export default function BallotScreen` to `export function BallotScreen`)
+import { View, Text } from 'react-native';
+
+export function BallotScreen() {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <Text>Ballot — TODO</Text>
+    </View>
+  );
+}

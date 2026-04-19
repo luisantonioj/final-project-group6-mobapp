@@ -10,12 +10,13 @@ import { supabase } from './app/utils/supabase';
 import { useAuthStore } from './app/stores/authStore';
 
 export default function App() {
-  const { setSession, clear } = useAuthStore();
+  const { setSession, clear, setInitialized} = useAuthStore();
 
   useEffect(() => {
     // Restore session on app launch — same logic as the old _layout.tsx
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      setInitialized(true);
     });
 
     // Listen for sign-in / sign-out events

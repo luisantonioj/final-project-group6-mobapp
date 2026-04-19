@@ -4,12 +4,12 @@
     "strict": true,
     "types": ["node"],
     "paths": {      
-      "@nav/*": ["./src/navigation/*"],
-      "@screens/*": ["./src/screens/*"],
-      "@hooks/*": ["./src/hooks/*"],
-      "@stores/*": ["./src/stores/*"],
-      "@utils/*": ["./src/utils/*"],
-      "@components/*": ["./src/components/*"]
+      "@nav/*": ["./app/navigation/*"],
+      "@screens/*": ["./app/screens/*"],
+      "@hooks/*": ["./app/hooks/*"],
+      "@stores/*": ["./app/stores/*"],
+      "@utils/*": ["./app/utils/*"],
+      "@components/*": ["./app/components/*"]
     }
   }
 }
