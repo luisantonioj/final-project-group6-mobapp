@@ -40,7 +40,7 @@ import { useCandidates }     from '../hooks/useCandidates';
 import { useCastVote }       from '../hooks/useVotes';
 import { useVotingStore }    from '../stores/votingStore';
 import { CandidateModal }    from '../components/CandidateModal';
-import { notifyVoteSubmitted } from '../utils/notifications';
+import { notifyVoteSubmitted } from '../notifications/notificationService';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {

@@ -4,7 +4,12 @@
     "slug": "animo-quorum",
     "main": "index.ts",
     "android": {
-      "softwareKeyboardLayoutMode": "adjustResize"
+      "softwareKeyboardLayoutMode": "adjustResize",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "plugins": [
       "expo-secure-store"

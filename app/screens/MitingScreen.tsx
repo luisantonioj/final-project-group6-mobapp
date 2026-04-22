@@ -37,7 +37,7 @@ import { Ionicons }          from '@expo/vector-icons';
 import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../hooks/useMiting';
 import { useAuthStore }      from '../stores/authStore';
 import { supabase }          from '../utils/supabase';
-import { notifyAdminAlert }  from '../utils/notifications';
+import { notifyAdminAlert }  from '../notifications/notificationService';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
