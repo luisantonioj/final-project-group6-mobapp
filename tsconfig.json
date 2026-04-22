@@ -2,6 +2,14 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {      
+      "@nav/*": ["./app/navigation/*"],
+      "@screens/*": ["./app/screens/*"],
+      "@hooks/*": ["./app/hooks/*"],
+      "@stores/*": ["./app/stores/*"],
+      "@utils/*": ["./app/utils/*"],
+      "@components/*": ["./app/components/*"]
+    }
   }
 }
