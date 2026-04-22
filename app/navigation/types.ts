@@ -18,7 +18,7 @@
 
 // ─── Root stack — gates Splash / Auth / App ───────────────────────────────────
 export type RootStackParamList = {
-  Splash:    undefined;
+  Splash:    { redirectTo: 'App' | 'Login'};
   Login:     undefined;
   App:       undefined;  // mounts the bottom tab navigator
 };
