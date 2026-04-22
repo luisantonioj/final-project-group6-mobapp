@@ -52,9 +52,20 @@ export default function App() {
 
     // ── 4. Auth state listener ────────────────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session) setSession(session);
-        else clear();
+      async (_event, session) => {
+        if (session) {
+          setSession(session);
+          const { data } = await supabase
+            .from('Users')
+            .select('*, UserRoles(Roles(role_name))')
+            .eq('auth_id', session.user.id)
+            .single();
+          const roleName = (data as any)?.UserRoles?.[0]?.Roles?.role_name;
+          setRole(roleName === 'Admin' ? 'Admin' : 'Student');
+          setProfile(data as any);
+        } else {
+          clear();
+        }
       }
     );
 
