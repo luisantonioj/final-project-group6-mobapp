@@ -1,41 +1,51 @@
+/**
+ * RootNavigator.tsx — Top-level navigation gate
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Flow:
+ *   1. App launches → SplashScreen plays (always, even if already logged in)
+ *   2. SplashScreen calls onDone() after its animation finishes
+ *   3. RootNavigator checks authStore:
+ *      - session exists  → replace with 'App'   (bottom tabs)
+ *      - no session      → replace with 'Login'
+ *
+ * SplashScreen drives the transition — not a timer here. This lets the
+ * animation fully complete before any auth state change causes a jump.
+ *
+ * After login: App.tsx's onAuthStateChange sets session → this navigator
+ * re-renders → 'App' screen is shown. No navigate() call needed from LoginScreen.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
 
-import { useAuthStore } from '../stores/authStore';
-import { AuthNavigator }    from './AuthNavigator';
-import { StudentNavigator } from './StudentNavigator';
-import { AdminNavigator }   from './AdminNavigator';
+import { useAuthStore }  from '../stores/authStore';
+import { SplashScreen }  from '../screens/SplashScreen';
+import { LoginScreen }   from '../screens/LoginScreen';
+import { AppNavigator }  from './AppNavigator';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, role, initialized } = useAuthStore();
+  const { session, initialized } = useAuthStore();
 
-  // Show a spinner only while App.tsx is waiting for getSession() to resolve.
-  // Once initialized = true, we know the real auth state and can route correctly.
-  // This prevents the login screen from flashing on app launch for logged-in users,
-  // and also prevents the spinner from showing forever when the user is logged out.
-  if (!initialized) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0F6E56" />
-      </View>
-    );
-  }
+  // Determine which screen to land on after splash
+  const postSplash = initialized && session ? 'App' : 'Login';
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!session ? (
-        // ── Not authenticated ──────────────────────────────────────────────
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : role === 'Admin' ? (
-        // ── Admin ─────────────────────────────────────────────────────────
-        <Stack.Screen name="Admin" component={AdminNavigator} />
-      ) : (
-        // ── Student (default for any authenticated non-Admin user) ─────────
-        <Stack.Screen name="Student" component={StudentNavigator} />
-      )}
+    <Stack.Navigator
+      screenOptions={{ headerShown: false, animation: 'fade' }}
+      initialRouteName="Splash"
+    >
+      {/* Splash always mounts first — it calls navigation.replace() when done */}
+      <Stack.Screen
+        name="Splash"
+        component={SplashScreen}
+        // Pass postSplash as an initialParam so SplashScreen knows where to go
+        initialParams={{ redirectTo: postSplash }}
+      />
+
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="App"   component={AppNavigator} />
     </Stack.Navigator>
   );
 }
