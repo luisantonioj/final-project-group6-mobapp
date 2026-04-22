@@ -111,61 +111,58 @@ export function LoginScreen() {
     setError(null);
 
     try {
-      if (mode === 'login') {
+        if (mode === 'login') {
         // ── Log In ────────────────────────────────────────────────────────────
         const { data, error: authErr } = await supabase.auth.signInWithPassword({
-          email:    email.trim().toLowerCase(),
-          password,
+            email: email.trim().toLowerCase(),
+            password,
         });
         if (authErr) throw new Error(authErr.message);
 
-        // Fetch role + profile and store them so RootNavigator routes correctly
         if (data.session) {
-          const { data: userRow } = await supabase
+            const { data: userRow } = await supabase
             .from('Users')
             .select('*, UserRoles(Roles(role_name))')
             .eq('auth_id', data.session.user.id)
             .single();
 
-          const roleName = (userRow as any)?.UserRoles?.[0]?.Roles?.role_name;
-          setRole(roleName === 'Admin' ? 'Admin' : 'Student');
-          setProfile(userRow as any);
-          setSession(data.session);
-          // RootNavigator auto-replaces to 'App' — no navigate() needed
+            const roleName = (userRow as any)?.UserRoles?.[0]?.Roles?.role_name;
+            setRole(roleName === 'Admin' ? 'Admin' : 'Student');
+            setProfile(userRow as any);
+            setSession(data.session);
         }
 
-      } else {
+        } else {
         // ── Sign Up ───────────────────────────────────────────────────────────
         const { data, error: authErr } = await supabase.auth.signUp({
-          email:    email.trim().toLowerCase(),
-          password,
-          options:  { data: { name: name.trim() } },
+            email: email.trim().toLowerCase(),
+            password,
+            options: { data: { name: name.trim() } },
         });
         if (authErr) throw new Error(authErr.message);
 
-        if (data.user) {
-          // Insert a row in the public Users table
-          const { data: newUser } = await supabase
+        // Wait half a second to let the Supabase trigger finish building the profile
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        if (data.session) {
+            // Fetch the fully built profile that the database trigger just created!
+            const { data: userRow } = await supabase
             .from('Users')
-            .insert({ auth_id: data.user.id, name: name.trim(), email: email.trim().toLowerCase() })
-            .select()
+            .select('*, UserRoles(Roles(role_name))')
+            .eq('auth_id', data.session.user.id)
             .single();
 
-          // TODO: Assign 'Student' role in UserRoles:
-          //   1. const { data: roleRow } = await supabase.from('Roles').select('id').eq('role_name','Student').single();
-          //   2. await supabase.from('UserRoles').insert({ user_id: newUser.id, role_id: roleRow.id });
-
-          setRole('Student');
-          setProfile(newUser as any);
-          if (data.session) setSession(data.session);
+            setRole('Student'); 
+            setProfile(userRow as any);
+            setSession(data.session);
         }
-      }
+        }
     } catch (err: any) {
-      setError(err.message ?? 'Something went wrong. Please try again.');
+        setError(err.message ?? 'Something went wrong. Please try again.');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
 
   return (
     <SafeAreaView style={s.safe}>
