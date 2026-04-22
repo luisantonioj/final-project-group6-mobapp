@@ -1,59 +1,32 @@
-// ─── Root ────────────────────────────────────────────────────────────────────
+/**
+ * navigation/types.ts — Route param lists
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Import the right ParamList in each screen for typed navigation props.
+ *
+ * USAGE:
+ *   import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+ *   import type { RootStackParamList } from '../navigation/types';
+ *   type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+ *
+ * useNavigation hook (inside any screen):
+ *   import { useNavigation } from '@react-navigation/native';
+ *   import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+ *   const nav = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
+ *   nav.navigate('Vote');
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+// ─── Root stack — gates Splash / Auth / App ───────────────────────────────────
 export type RootStackParamList = {
-  Auth:    undefined;
-  Student: undefined;
-  Admin:   undefined;
+  Splash:    undefined;
+  Login:     undefined;
+  App:       undefined;  // mounts the bottom tab navigator
 };
 
-// ─── Auth stack ──────────────────────────────────────────────────────────────
-export type AuthStackParamList = {
-  Login:    undefined;
-  Register: undefined;
-};
-
-// ─── Student bottom tabs ─────────────────────────────────────────────────────
-export type StudentTabParamList = {
-  FeedTab:    undefined;
-  VoteTab:    undefined;
-  MitingTab:  undefined;
-  ProfileTab: undefined;
-};
-
-// ─── Feed stack (nested inside FeedTab) ──────────────────────────────────────
-export type FeedStackParamList = {
-  FeedList:         undefined;
-  PostDetail:       { postId: string };
-  CandidateProfile: { candidateId: string };
-};
-
-// ─── Vote stack (nested inside VoteTab) ──────────────────────────────────────
-// Mirrors existing app/(student)/vote/ structure: index → [positionID] → confirm
-export type VoteStackParamList = {
-  BallotList:  undefined;
-  BallotDetail: { positionId: string };
-  VoteConfirm: undefined;
-  LiveResults: undefined;
-};
-
-// ─── Admin bottom tabs ───────────────────────────────────────────────────────
-export type AdminTabParamList = {
-  DashboardTab:  undefined;
-  CandidatesTab: undefined;
-  PostsTab:      undefined;
-  SettingsTab:   undefined;
-};
-
-// ─── Candidates stack (nested inside CandidatesTab) ──────────────────────────
-export type CandidatesStackParamList = {
-  CandidateList: undefined;
-  CandidateEdit: { candidateId: string };
-  CandidateCreate: undefined;
-};
-
-// ─── Settings stack (nested inside SettingsTab) ──────────────────────────────
-export type SettingsStackParamList = {
-  SystemSettings: undefined;
-  AuditLogs:      undefined;
-  UserManagement: undefined;
-  VoteTally:      undefined;
+// ─── App bottom tabs ──────────────────────────────────────────────────────────
+export type AppTabParamList = {
+  Dashboard: undefined;
+  Vote:      undefined;
+  Miting:    undefined;
+  Profile:   undefined;
 };
