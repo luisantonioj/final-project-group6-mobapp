@@ -16,7 +16,6 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
 import { useAuthStore }  from '../stores/authStore';
 import { SplashScreen }  from '../screens/SplashScreen';
 import { LoginScreen }   from '../screens/LoginScreen';
@@ -26,26 +25,27 @@ import type { RootStackParamList } from './types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, initialized } = useAuthStore();
+  const { session, role, initialized } = useAuthStore();
 
-  // Determine which screen to land on after splash
-  const postSplash = initialized && session ? 'App' : 'Login';
+  // Not ready yet — keep showing Splash (it will never call replace())
+  if (!initialized) {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+        <Stack.Screen name="Splash" component={SplashScreen}
+          initialParams={{ redirectTo: 'Login' }} />
+      </Stack.Navigator>
+    );
+  }
 
+  // Auth resolved — show the right screen declaratively
+  // Splash is gone; React Navigation handles the transition
   return (
-    <Stack.Navigator
-      screenOptions={{ headerShown: false, animation: 'fade' }}
-      initialRouteName="Splash"
-    >
-      {/* Splash always mounts first — it calls navigation.replace() when done */}
-      <Stack.Screen
-        name="Splash"
-        component={SplashScreen}
-        // Pass postSplash as an initialParam so SplashScreen knows where to go
-        initialParams={{ redirectTo: postSplash }}
-      />
-
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="App"   component={AppNavigator} />
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+      {session && role ? (
+        <Stack.Screen name="App" component={AppNavigator} />
+      ) : (
+        <Stack.Screen name="Login" component={LoginScreen} />
+      )}
     </Stack.Navigator>
   );
 }
