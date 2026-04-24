@@ -49,6 +49,8 @@ interface AuthState {
   setRole:        (role: 'Admin' | 'Student' | null) => void;
   setInitialized: (v: boolean) => void;
   clear:          () => void;
+  splashReady:    boolean;
+  setSplashReady: (v: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -62,5 +64,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   setInitialized: (v)           => set({ initialized: v }),
   // clear() resets everything except initialized — the app stays mounted,
   // only the auth state is wiped. RootNavigator switches to Auth stack.
+  splashReady:    false,
+  setSplashReady: (v) => set({ splashReady: v }),
   clear: () => set({ session: null, userProfile: null, role: null }),
 }));
+

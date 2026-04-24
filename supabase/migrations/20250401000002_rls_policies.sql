@@ -206,3 +206,29 @@ create policy "userroles: read own"
 create policy "roles: authenticated read"
   on public."Roles" for select
   using (auth.role() = 'authenticated');
+
+
+-- Allow users to read their own profile only
+CREATE POLICY "Users can read own profile"
+  ON public."Users" FOR SELECT
+  USING (auth.uid() = auth_id);
+
+-- Allow users to update their own profile only
+CREATE POLICY "Users can update own profile"
+  ON public."Users" FOR UPDATE
+  USING (auth.uid() = auth_id);
+
+-- Allow admins to read all user profiles
+CREATE POLICY "Admins can read all users"
+  ON public."Users" FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public."UserRoles" ur
+      JOIN public."Roles" r ON ur.role_id = r.id
+      WHERE ur.user_id = (
+        SELECT id FROM public."Users" WHERE auth_id = auth.uid()
+      )
+      AND r.role_name = 'Admin'
+    )
+  );

@@ -34,10 +34,10 @@ import {
 } from 'react-native';
 import { SafeAreaView }      from 'react-native-safe-area-context';
 import { Ionicons }          from '@expo/vector-icons';
-import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../hooks/useMiting';
-import { useAuthStore }      from '../stores/authStore';
-import { supabase }          from '../utils/supabase';
-import { notifyAdminAlert }  from '../notifications/notificationService';
+import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../../hooks/useMiting';
+import { useAuthStore }      from '../../stores/authStore';
+import { supabase }          from '../../utils/supabase';
+import { notifyAdminAlert }  from '../../notifications/notificationService';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -85,14 +85,14 @@ export function MitingScreen() {
   useEffect(() => {
     // Initial check
     supabase.from('SystemSettings').select('is_miting_active').single()
-      .then(({ data }) => setMitingActive(!!(data as any)?.is_miting_active));
+      .then(({ data }: { data: any }) => setMitingActive(!!(data as any)?.is_miting_active));
 
     // Realtime: fire notification + update state when admin activates Miting
     const ch = supabase
       .channel('miting-settings')
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'SystemSettings' },
-        (payload) => {
+        (payload: any) => {
           const next = payload.new as any;
           const prev = payload.old as any;
           setMitingActive(!!next.is_miting_active);

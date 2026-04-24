@@ -16,17 +16,26 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-// ─── Root stack — gates Splash / Auth / App ───────────────────────────────────
+// ─── Root stack ───────────────────────────────────────────────────────────────
 export type RootStackParamList = {
-  Splash:    { redirectTo: 'App' | 'Login'};
+  Splash:    undefined;
   Login:     undefined;
-  App:       undefined;  // mounts the bottom tab navigator
+  App:       undefined;   // student bottom tabs
+  Admin:     undefined;   // admin bottom tabs
 };
 
-// ─── App bottom tabs ──────────────────────────────────────────────────────────
+// ─── Student bottom tabs ──────────────────────────────────────────────────────
 export type AppTabParamList = {
   Dashboard: undefined;
   Vote:      undefined;
   Miting:    undefined;
   Profile:   undefined;
+};
+
+// ─── Admin bottom tabs ────────────────────────────────────────────────────────
+export type AdminTabParamList = {
+  AdminDashboard:  undefined;
+  AdminCandidates: undefined;
+  AdminResults:    undefined;
+  AdminSettings:   undefined;
 };

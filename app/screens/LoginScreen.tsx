@@ -5,32 +5,6 @@
  * After a successful login or registration, App.tsx's onAuthStateChange fires
  * automatically and RootNavigator replaces this screen with the App (tabs).
  * You never need to call navigation.navigate() after auth succeeds.
- *
- * SUPABASE — LOG IN:
- *   const { error } = await supabase.auth.signInWithPassword({ email, password });
- *
- * SUPABASE — SIGN UP:
- *   const { data, error } = await supabase.auth.signUp({
- *     email, password, options: { data: { name: fullName } },
- *   });
- *   if (data.user) {
- *     await supabase.from('Users').insert({
- *       auth_id: data.user.id,
- *       name:    fullName,
- *       email:   email.trim().toLowerCase(),
- *     });
- *     // Assign Student role in UserRoles (look up Student role_id first)
- *   }
- *
- * ROLE FETCH (after login — required for RootNavigator to show correct tabs):
- *   const { data } = await supabase
- *     .from('Users')
- *     .select('id, UserRoles(Roles(role_name))')
- *     .eq('auth_id', session.user.id)
- *     .single();
- *   const roleName = data?.UserRoles?.[0]?.Roles?.role_name;
- *   useAuthStore.getState().setRole(roleName === 'Admin' ? 'Admin' : 'Student');
- *   useAuthStore.getState().setProfile(data);
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import React, { useState, useRef } from 'react';
@@ -52,33 +26,31 @@ import { SafeAreaView }  from 'react-native-safe-area-context';
 import { StatusBar }     from 'expo-status-bar';
 import { Ionicons }      from '@expo/vector-icons';
 import { supabase }      from '../utils/supabase';
-import { useAuthStore }  from '../stores/authStore';
 
-// ─── Design tokens (shared with other screens) ────────────────────────────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:       '#0A0F0A',
-  surface:  '#111811',
-  border:   '#1E2E1E',
-  green:    '#0F6E56',
+  bg:          '#0A0F0A',
+  surface:     '#111811',
+  border:      '#1E2E1E',
+  green:       '#0F6E56',
   greenBright: '#22C55E',
-  text:     '#F0FFF0',
-  textSub:  '#A3C5A3',
-  textMuted:'#4B6B4B',
-  error:    '#EF4444',
+  text:        '#F0FFF0',
+  textSub:     '#A3C5A3',
+  textMuted:   '#4B6B4B',
+  error:       '#EF4444',
 };
 
 type Mode = 'login' | 'signup';
 
 export function LoginScreen() {
-  const { setSession, setRole, setProfile } = useAuthStore();
-
-  const [mode,     setMode]    = useState<Mode>('login');
-  const [name,     setName]    = useState('');
-  const [email,    setEmail]   = useState('');
-  const [password, setPass]    = useState('');
-  const [showPass, setShowPass]= useState(false);
-  const [loading,  setLoading] = useState(false);
-  const [error,    setError]   = useState<string | null>(null);
+  // ✅ Removed: setSession, setRole, setProfile — onAuthStateChange handles all of this
+  const [mode,     setMode]     = useState<Mode>('login');
+  const [name,     setName]     = useState('');
+  const [email,    setEmail]    = useState('');
+  const [password, setPass]     = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
 
   // Subtle fade when switching modes
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -111,58 +83,31 @@ export function LoginScreen() {
     setError(null);
 
     try {
-        if (mode === 'login') {
-        // ── Log In ────────────────────────────────────────────────────────────
-        const { data, error: authErr } = await supabase.auth.signInWithPassword({
-            email: email.trim().toLowerCase(),
-            password,
+      if (mode === 'login') {
+        // ── Log In — just trigger auth, onAuthStateChange handles the rest ──
+        const { error: authErr } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
         });
         if (authErr) throw new Error(authErr.message);
+        // ✅ No setRole/setProfile/setSession here — App.tsx onAuthStateChange does it
 
-        if (data.session) {
-            const { data: userRow } = await supabase
-            .from('Users')
-            .select('*, UserRoles(Roles(role_name))')
-            .eq('auth_id', data.session.user.id)
-            .single();
-
-            const roleName = (userRow as any)?.UserRoles?.[0]?.Roles?.role_name;
-            setRole(roleName === 'Admin' ? 'Admin' : 'Student');
-            setProfile(userRow as any);
-            setSession(data.session);
-        }
-
-        } else {
-        // ── Sign Up ───────────────────────────────────────────────────────────
-        const { data, error: authErr } = await supabase.auth.signUp({
-            email: email.trim().toLowerCase(),
-            password,
-            options: { data: { name: name.trim() } },
+      } else {
+        // ── Sign Up — just trigger auth, onAuthStateChange handles the rest ──
+        const { error: authErr } = await supabase.auth.signUp({
+          email: email.trim().toLowerCase(),
+          password,
+          options: { data: { name: name.trim() } },
         });
         if (authErr) throw new Error(authErr.message);
-
-        // Wait half a second to let the Supabase trigger finish building the profile
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        if (data.session) {
-            // Fetch the fully built profile that the database trigger just created!
-            const { data: userRow } = await supabase
-            .from('Users')
-            .select('*, UserRoles(Roles(role_name))')
-            .eq('auth_id', data.session.user.id)
-            .single();
-
-            setRole('Student'); 
-            setProfile(userRow as any);
-            setSession(data.session);
-        }
-        }
+        // ✅ No setRole/setProfile/setSession here — App.tsx onAuthStateChange does it
+      }
     } catch (err: any) {
-        setError(err.message ?? 'Something went wrong. Please try again.');
+      setError(err.message ?? 'Something went wrong. Please try again.');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    };
+  };
 
   return (
     <SafeAreaView style={s.safe}>
@@ -335,12 +280,7 @@ const s = StyleSheet.create({
     padding: 4,
     marginBottom: 28,
   },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 9,
-    alignItems: 'center',
-  },
+  modeBtn:           { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
   modeBtnActive:     { backgroundColor: C.green },
   modeBtnText:       { fontSize: 14, fontWeight: '600', color: C.textMuted },
   modeBtnTextActive: { color: '#fff', fontWeight: '700' },
@@ -360,13 +300,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
   },
   inputIcon: { marginRight: 8 },
-  input: {
-    flex: 1,
-    color: C.text,
-    fontSize: 15,
-    paddingVertical: 13,
-  },
-  eyeBtn: { padding: 6 },
+  input:     { flex: 1, color: C.text, fontSize: 15, paddingVertical: 13 },
+  eyeBtn:    { padding: 6 },
 
   // Error
   errorBox: {
@@ -383,13 +318,8 @@ const s = StyleSheet.create({
   errorText: { flex: 1, color: C.error, fontSize: 13, lineHeight: 18 },
 
   // Submit
-  submitBtn: {
-    backgroundColor: C.green,
-    borderRadius: 13,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 8,
-  },
+  submitBtn:     { backgroundColor: C.green, borderRadius: 13, paddingVertical: 15,
+                   alignItems: 'center', marginTop: 8 },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   // Switch hint

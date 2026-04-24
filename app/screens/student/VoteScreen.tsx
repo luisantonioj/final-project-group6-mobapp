@@ -35,12 +35,12 @@ import {
 } from 'react-native';
 import { SafeAreaView }      from 'react-native-safe-area-context';
 import { Ionicons }          from '@expo/vector-icons';
-import { usePositions }      from '../hooks/usePositions';
-import { useCandidates }     from '../hooks/useCandidates';
-import { useCastVote }       from '../hooks/useVotes';
-import { useVotingStore }    from '../stores/votingStore';
-import { CandidateModal }    from '../components/CandidateModal';
-import { notifyVoteSubmitted } from '../notifications/notificationService';
+import { usePositions }      from '../../hooks/usePositions';
+import { useCandidates }     from '../../hooks/useCandidates';
+import { useCastVote }       from '../../hooks/useVotes';
+import { useVotingStore }    from '../../stores/votingStore';
+import { CandidateModal }    from '../../components/CandidateModal';
+import { notifyVoteSubmitted } from '../../notifications/notificationService';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {

@@ -429,21 +429,24 @@ export type Database = {
       UserRoles: {
         Row: {
           assigned_at: string | null
-          id: string
-          role_id: string
-          user_id: string
+          auth_id:     string | null  // ← added for RLS circular dependency fix
+          id:          string
+          role_id:     string
+          user_id:     string
         }
         Insert: {
           assigned_at?: string | null
-          id?: string
-          role_id: string
-          user_id: string
+          auth_id?:     string | null  // ← added
+          id?:          string
+          role_id:      string
+          user_id:      string
         }
         Update: {
           assigned_at?: string | null
-          id?: string
-          role_id?: string
-          user_id?: string
+          auth_id?:     string | null  // ← added
+          id?:          string
+          role_id?:     string
+          user_id?:     string
         }
         Relationships: [
           {
