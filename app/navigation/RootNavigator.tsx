@@ -15,36 +15,43 @@
  * re-renders → 'App' screen is shown. No navigate() call needed from LoginScreen.
  * ─────────────────────────────────────────────────────────────────────────────
  */
+import { useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useAuthStore }  from '../stores/authStore';
-import { SplashScreen }  from '../screens/SplashScreen';
-import { LoginScreen }   from '../screens/LoginScreen';
-import { AppNavigator }  from './AppNavigator';
+import { useAuthStore }   from '../stores/authStore';
+import { SplashScreen }   from '../screens/SplashScreen';
+import { LoginScreen }    from '../screens/LoginScreen';
+import { AppNavigator }   from './AppNavigator';
+import { AdminNavigator } from './AdminNavigator';
 import type { RootStackParamList } from './types';
+import { View } from 'react-native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, role, initialized } = useAuthStore();
+  const { session, role, initialized, splashReady } = useAuthStore();
 
-  // Not ready yet — keep showing Splash (it will never call replace())
-  if (!initialized) {
+  console.log('RootNavigator:', { splashReady, initialized, role, session: !!session });
+
+  if (!splashReady) {
     return (
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-        <Stack.Screen name="Splash" component={SplashScreen}
-          initialParams={{ redirectTo: 'Login' }} />
+        <Stack.Screen name="Splash" component={SplashScreen} />
       </Stack.Navigator>
     );
   }
 
-  // Auth resolved — show the right screen declaratively
-  // Splash is gone; React Navigation handles the transition
+  if (!initialized) {
+    return <View style={{ flex: 1, backgroundColor: '#0A0F0A' }} />;
+  }
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-      {session && role ? (
-        <Stack.Screen name="App" component={AppNavigator} />
-      ) : (
+      {!session || !role ? (
         <Stack.Screen name="Login" component={LoginScreen} />
+      ) : role === 'Admin' ? (
+        <Stack.Screen name="Admin" component={AdminNavigator} />
+      ) : (
+        <Stack.Screen name="App"   component={AppNavigator} />
       )}
     </Stack.Navigator>
   );

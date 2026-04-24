@@ -25,31 +25,25 @@ import {
   Animated,
   StyleSheet,
   Dimensions,
-  Image,
 } from 'react-native';
-import { StatusBar }   from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import { StatusBar }  from 'expo-status-bar';
+import { useRoute }   from '@react-navigation/native';
+import { useAuthStore } from '../stores/authStore';
 
 const { width } = Dimensions.get('window');
-const TOTAL_DURATION = 2400; // ms before navigate away
-
-type Nav = NativeStackNavigationProp<RootStackParamList, 'Splash'>;
+const TOTAL_DURATION = 2400;
 
 export function SplashScreen() {
-  const navigation = useNavigation<Nav>();
-  const route      = useRoute();
-  // redirectTo comes from RootNavigator initialParams
-  const redirectTo = (route.params as any)?.redirectTo ?? 'Login';
+  const route  = useRoute();
+  const { setSplashReady } = useAuthStore();
 
   // Animated values
-  const logoOpacity    = useRef(new Animated.Value(0)).current;
-  const logoScale      = useRef(new Animated.Value(0.6)).current;
-  const titleOpacity   = useRef(new Animated.Value(0)).current;
-  const titleTranslateY= useRef(new Animated.Value(18)).current;
-  const barWidth       = useRef(new Animated.Value(0)).current;
-  const screenOpacity  = useRef(new Animated.Value(1)).current;
+  const logoOpacity     = useRef(new Animated.Value(0)).current;
+  const logoScale       = useRef(new Animated.Value(0.6)).current;
+  const titleOpacity    = useRef(new Animated.Value(0)).current;
+  const titleTranslateY = useRef(new Animated.Value(18)).current;
+  const barWidth        = useRef(new Animated.Value(0)).current;
+  const screenOpacity   = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Step 1 — Logo entrance
@@ -63,7 +57,7 @@ export function SplashScreen() {
       }),
     ]).start();
 
-    // Step 2 — Title entrance (slightly after logo)
+    // Step 2 — Title entrance
     Animated.parallel([
       Animated.timing(titleOpacity, {
         toValue: 1, duration: 450, delay: 650, useNativeDriver: true,
@@ -78,20 +72,21 @@ export function SplashScreen() {
       toValue: 1, duration: 1300, delay: 900, useNativeDriver: false,
     }).start();
 
-    // Step 4 — Fade out + navigate
+    // Step 4 — Fade out + signal RootNavigator that splash is done
     const timer = setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0, duration: 300, useNativeDriver: true,
       }).start(() => {
-        navigation.replace(redirectTo as any);
-      });
+    console.log('splash animation done, setting splashReady');
+    setSplashReady(true); // ✅ no function in params
+    });
     }, TOTAL_DURATION);
 
     return () => clearTimeout(timer);
   }, []);
 
   const barWidthInterpolated = barWidth.interpolate({
-    inputRange: [0, 1],
+    inputRange:  [0, 1],
     outputRange: ['0%', '100%'],
   });
 
@@ -104,9 +99,6 @@ export function SplashScreen() {
         opacity: logoOpacity,
         transform: [{ scale: logoScale }],
       }]}>
-        {/* SUGGESTION: Replace this View+Text with your actual logo image:
-            <Image source={require('../../assets/images/logoCrop.png')}
-                   style={{ width: 100, height: 100 }} resizeMode="contain" /> */}
         <View style={s.logoCircle}>
           <Text style={s.logoLetters}>AQ</Text>
         </View>

@@ -15,12 +15,11 @@
  */
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons }                 from '@expo/vector-icons';
-
-import { DashboardScreen } from '../screens/DashboardScreen';
-import { VoteScreen }      from '../screens/VoteScreen';
-import { MitingScreen }    from '../screens/MitingScreen';
-import { ProfileScreen }   from '../screens/ProfileScreen';
+import { Ionicons } from '@expo/vector-icons';
+import { DashboardScreen } from '../screens/student/DashboardScreen';
+import { VoteScreen } from '../screens/student/VoteScreen';
+import { MitingScreen } from '../screens/student/MitingScreen';
+import { ProfileScreen } from '../screens/student/ProfileScreen';
 
 import type { AppTabParamList } from './types';
 
