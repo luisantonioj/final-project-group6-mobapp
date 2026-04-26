@@ -66,26 +66,116 @@ interface Question {
   created_at:    string;
 }
 
+// ─── QuestionCard ─────────────────────────────────────────────────────────────
+function QuestionCard({
+  q, index, totalCount, hasUpvoted, onUpvote, userId,
+}: {
+  q: Question;
+  index: number;
+  totalCount: number;
+  hasUpvoted: boolean;
+  onUpvote: (id: string) => void;
+  userId: string;
+}) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const isTop = index === 0 && totalCount > 1;
+  const isOwn = q.student_id === userId;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 1.35, duration: 100, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }),
+    ]).start();
+    onUpvote(q.id);
+  };
+
+  return (
+    <View style={[s.questionCard, isTop && s.questionCardTop]}>
+      {/* Upvote button */}
+      <TouchableOpacity
+        style={[s.upvoteBtn, hasUpvoted && s.upvoteBtnActive]}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <Ionicons
+            name={hasUpvoted ? 'arrow-up-circle' : 'arrow-up-circle-outline'}
+            size={22}
+            color={hasUpvoted ? C.greenBright : C.textMuted}
+          />
+        </Animated.View>
+        <Text style={[s.upvoteCount, hasUpvoted && { color: C.greenBright }]}>
+          {q.upvote_count}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Question body */}
+      <View style={{ flex: 1 }}>
+        {isTop && (
+          <View style={s.topBadge}>
+            <Text style={s.topBadgeText}>🔥 Top Question</Text>
+          </View>
+        )}
+        <Text style={s.questionText}>{q.question_text}</Text>
+        <View style={s.questionFooter}>
+          <Text style={s.questionMeta}>
+            {new Date(q.created_at).toLocaleTimeString('en-PH', {
+              hour: '2-digit', minute: '2-digit',
+            })}
+          </Text>
+          {isOwn && (
+            <View style={s.youBadge}>
+              <Text style={s.youBadgeText}>You</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function MitingScreen() {
   const { userProfile } = useAuthStore();
   const userId = userProfile?.id ?? '';
 
-  const { data: questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
-  const { mutateAsync: upvote }        = useUpvoteQuestion();
-  const { mutateAsync: removeUpvote }  = useRemoveUpvote();
+  // Original Code
+  // const { data: questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
 
-  const [draft,      setDraft]      = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
-  const [isMitingActive, setMitingActive] = useState(false);
+  // Temporary Code
+  const { data: _questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
+  const questions: Question[] = [
+    { id: '1', question_text: 'What is your plan for student welfare?', upvote_count: 14, student_id: 'a', is_approved: true, created_at: new Date().toISOString() },
+    { id: '2', question_text: 'How will you improve the cafeteria situation?', upvote_count: 9, student_id: 'b', is_approved: true, created_at: new Date().toISOString() },
+    { id: '3', question_text: 'What specific steps will you take for campus safety?', upvote_count: 3, student_id: 'c', is_approved: true, created_at: new Date().toISOString() },
+  ];
 
-  const inputRef = useRef<TextInput>(null);
+  const { mutateAsync: upvote }       = useUpvoteQuestion();
+  const { mutateAsync: removeUpvote } = useRemoveUpvote();
+
+  const [draft,          setDraft]         = useState('');
+  const [submitting,     setSubmitting]    = useState(false);
+  const [upvotedIds,     setUpvotedIds]    = useState<Set<string>>(new Set());
+  const [isMitingActive, setMitingActive]  = useState(true); // Change to false to preview inactive state
+  const [showToast,      setShowToast]     = useState(false);
+
+  const inputRef  = useRef<TextInput>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // ─── Pulse animation for LIVE dot ────────────────────────────────────────
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.2, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,   duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   // ─── Check if Miting is active + listen for admin to activate it ─────────
   useEffect(() => {
-    // Initial check
-    supabase.from('SystemSettings').select('is_miting_active').single()
-      .then(({ data }: { data: any }) => setMitingActive(!!(data as any)?.is_miting_active));
+    // Initial check — comment out to keep isMitingActive as hardcoded above
+    // supabase.from('SystemSettings').select('is_miting_active').single()
+    //   .then(({ data }: { data: any }) => setMitingActive(!!(data as any)?.is_miting_active));
 
     // Realtime: fire notification + update state when admin activates Miting
     const ch = supabase
@@ -118,6 +208,8 @@ export function MitingScreen() {
       });
       setDraft('');
       inputRef.current?.blur();
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     } finally {
       setSubmitting(false);
     }
@@ -151,6 +243,10 @@ export function MitingScreen() {
     }
   };
 
+  const charColor = draft.length >= 265 ? C.red : draft.length >= 250 ? C.amber : C.textMuted;
+  const qCount    = questions?.length ?? 0;
+  const qLabel    = qCount === 1 ? '1 question' : `${qCount} questions`;
+
   // ─── Inactive state ───────────────────────────────────────────────────────
   if (!isMitingActive) {
     return (
@@ -182,16 +278,16 @@ export function MitingScreen() {
         {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.livePill}>
-            <View style={s.liveDot} />
+            <Animated.View style={[s.liveDot, { opacity: pulseAnim }]} />
             <Text style={s.livePillText}>LIVE</Text>
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={s.headerTitle}>Miting de Avance</Text>
             <Text style={s.headerSub}>Upvote the questions you want answered</Text>
           </View>
-          <Text style={s.questionCount}>
-            {questions?.length ?? 0} Q
-          </Text>
+          <View style={s.questionCountBadge}>
+            <Text style={s.questionCountText}>{qLabel}</Text>
+          </View>
         </View>
 
         {/* ── Questions list ── */}
@@ -213,46 +309,25 @@ export function MitingScreen() {
                 <Text style={s.emptyBody}>Be the first to submit one below.</Text>
               </View>
             }
-            renderItem={({ item: q, index }) => {
-              const hasUpvoted = upvotedIds.has(q.id);
-              const isTop      = index === 0 && (questions?.length ?? 0) > 1;
-
-              return (
-                <View style={[s.questionCard, isTop && s.questionCardTop]}>
-                  {/* Upvote button */}
-                  <TouchableOpacity
-                    style={[s.upvoteBtn, hasUpvoted && s.upvoteBtnActive]}
-                    onPress={() => handleUpvote(q.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={hasUpvoted ? 'arrow-up-circle' : 'arrow-up-circle-outline'}
-                      size={22}
-                      color={hasUpvoted ? C.greenBright : C.textMuted}
-                    />
-                    <Text style={[s.upvoteCount, hasUpvoted && { color: C.greenBright }]}>
-                      {q.upvote_count}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Question body */}
-                  <View style={{ flex: 1 }}>
-                    {isTop && (
-                      <View style={s.topBadge}>
-                        <Text style={s.topBadgeText}>🔥 Top Question</Text>
-                      </View>
-                    )}
-                    <Text style={s.questionText}>{q.question_text}</Text>
-                    <Text style={s.questionMeta}>
-                      {new Date(q.created_at).toLocaleTimeString('en-PH', {
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              );
-            }}
+            renderItem={({ item: q, index }) => (
+              <QuestionCard
+                q={q}
+                index={index}
+                totalCount={questions?.length ?? 0}
+                hasUpvoted={upvotedIds.has(q.id)}
+                onUpvote={handleUpvote}
+                userId={userId}
+              />
+            )}
           />
+        )}
+
+        {/* ── Submission toast ── */}
+        {showToast && (
+          <View style={s.toast}>
+            <Ionicons name="checkmark-circle" size={16} color={C.greenBright} />
+            <Text style={s.toastText}>Question submitted! Waiting for approval.</Text>
+          </View>
         )}
 
         {/* ── Ask a question input ── */}
@@ -270,7 +345,7 @@ export function MitingScreen() {
               returnKeyType="send"
               onSubmitEditing={handleSubmit}
             />
-            <Text style={s.charCount}>{draft.length}/280</Text>
+            <Text style={[s.charCount, { color: charColor }]}>{draft.length}/280</Text>
           </View>
           <TouchableOpacity
             style={[s.sendBtn, (!draft.trim() || submitting) && s.sendBtnDisabled]}
@@ -316,7 +391,13 @@ const s = StyleSheet.create({
   livePillText: { fontSize: 10, fontWeight: '800', color: C.red, letterSpacing: 1 },
   headerTitle:  { fontSize: 15, fontWeight: '800', color: C.text },
   headerSub:    { fontSize: 11, color: C.textMuted, marginTop: 1 },
-  questionCount:{ fontSize: 12, fontWeight: '700', color: C.textMuted },
+
+  questionCountBadge: {
+    backgroundColor: C.surface2, borderRadius: 12,
+    borderWidth: 1, borderColor: C.border,
+    paddingHorizontal: 9, paddingVertical: 4,
+  },
+  questionCountText: { fontSize: 11, fontWeight: '700', color: C.textMuted },
 
   // List
   list: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 16 },
@@ -342,7 +423,11 @@ const s = StyleSheet.create({
     alignItems: 'center', gap: 3, minWidth: 36,
     paddingTop: 2,
   },
-  upvoteBtnActive: {},
+  upvoteBtnActive: {
+    backgroundColor: C.greenGlow,
+    borderRadius: 10,
+    paddingHorizontal: 4,
+  },
   upvoteCount: { fontSize: 13, fontWeight: '700', color: C.textMuted },
 
   // Top badge
@@ -354,8 +439,27 @@ const s = StyleSheet.create({
   },
   topBadgeText: { fontSize: 11, fontWeight: '700', color: C.greenBright },
 
-  questionText: { fontSize: 14, color: C.text, lineHeight: 21, marginBottom: 6 },
-  questionMeta: { fontSize: 11, color: C.textMuted },
+  questionText:   { fontSize: 14, color: C.text, lineHeight: 21, marginBottom: 6 },
+  questionFooter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  questionMeta:   { fontSize: 11, color: C.textMuted },
+
+  // "You" badge
+  youBadge: {
+    backgroundColor: 'rgba(15,110,86,0.20)', borderRadius: 8,
+    borderWidth: 1, borderColor: C.green,
+    paddingHorizontal: 7, paddingVertical: 2,
+  },
+  youBadgeText: { fontSize: 10, fontWeight: '700', color: C.greenBright },
+
+  // Toast
+  toast: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 14, marginBottom: 8,
+    backgroundColor: C.surface2, borderRadius: 12,
+    borderWidth: 1, borderColor: C.greenBright + '44',
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  toastText: { fontSize: 13, color: C.textSub, flex: 1 },
 
   // Input bar
   inputBar: {
@@ -371,7 +475,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8,
   },
   input:     { color: C.text, fontSize: 14, maxHeight: 90 },
-  charCount: { fontSize: 10, color: C.textMuted, textAlign: 'right', marginTop: 4 },
+  charCount: { fontSize: 10, textAlign: 'right', marginTop: 4 },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: C.green,
