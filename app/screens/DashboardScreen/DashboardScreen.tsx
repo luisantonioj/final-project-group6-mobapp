@@ -1,3 +1,18 @@
+<<<<<<< Updated upstream:app/screens/DashboardScreen/DashboardScreen.tsx
+=======
+/**
+ * FeedScreen.tsx — Student home screen (FeedList route)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * BACKEND STATUS:
+ *   ✅ Posts / Announcements  → usePosts()
+ *   ✅ Poll voting            → usePollResponses() + useSubmitPollResponse()
+ *   🔲 Live vote results      → still uses DUMMY_POSITIONS (useVotes not ready)
+ *   🔲 Voting countdown       → still hardcoded (useSettings not ready)
+ *   🔲 Comments               → local state only (useCreateComment not ready)
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+>>>>>>> Stashed changes:app/screens/student/DashboardScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,9 +24,8 @@ import {
   Animated,
   StatusBar,
   Platform,
-  Keyboard,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +37,9 @@ import {
   liveStyles,
   shared,
 } from './DashboardScreen.styles';
+import { usePosts } from '../../hooks/usePosts';
+import { usePollResponses, useSubmitPollResponse } from '../../hooks/usePollResponses';
+import { supabase } from '../../utils/supabase';
 
 // =============================================================================
 // TYPES
@@ -35,18 +52,14 @@ interface Comment {
   text: string;
 }
 
-interface Post {
+interface RawPost {
   id: string;
+  admin_id: string;
   type: 'announcement' | 'poll';
-  author: string;
-  authorInitials: string;
-  role: string;
-  time: string;
   title: string;
-  body: string;
-  likes: number;
-  comments: Comment[];
-  pollOptions?: { label: string; votes: number }[];
+  content: string;
+  created_at: string;
+  PollOptions?: { id: string; post_id: string; option_text: string }[];
 }
 
 interface Candidate {
@@ -64,57 +77,8 @@ interface Position {
 }
 
 // =============================================================================
-// DUMMY DATA — remove and replace with real Supabase queries upon integration
+// DUMMY DATA — only kept for sections not yet connected to Supabase
 // =============================================================================
-
-const DUMMY_FEED: Post[] = [
-  {
-    id: '1',
-    type: 'announcement',
-    author: 'DLSL COMELEC',
-    authorInitials: 'CO',
-    role: 'Official',
-    time: '2h ago',
-    title: 'Voting Opens Tomorrow at 8:00 AM',
-    body: 'Remind all registered voters to bring their school ID. Voting booths will be located at the gymnasium and student center. Cast your vote wisely!',
-    likes: 142,
-    comments: [
-      { id: 'c1', user: 'Juan D.', initials: 'JD', text: 'Will there be a mobile voting option this year?' },
-      { id: 'c2', user: 'Maria S.', initials: 'MS', text: "Finally! Can't wait to vote." },
-    ],
-  },
-  {
-    id: '2',
-    type: 'poll',
-    author: 'DLSL COMELEC',
-    authorInitials: 'CO',
-    role: 'Official',
-    time: '5h ago',
-    title: 'Which platform do you prefer for Miting de Avance?',
-    body: '',
-    likes: 88,
-    comments: [
-      { id: 'c3', user: 'Carlo R.', initials: 'CR', text: 'Online is more accessible for everyone!' },
-    ],
-    pollOptions: [
-      { label: 'In-Person', votes: 312 },
-      { label: 'Online (Zoom)', votes: 198 },
-      { label: 'Hybrid', votes: 276 },
-    ],
-  },
-  {
-    id: '3',
-    type: 'announcement',
-    author: 'Student Affairs',
-    authorInitials: 'SA',
-    role: 'Admin',
-    time: '1d ago',
-    title: 'Candidate Verification Completed',
-    body: "All 14 candidates have been verified and cleared to run in this year's election. Full candidate profiles are available in the Candidates tab.",
-    likes: 61,
-    comments: [],
-  },
-];
 
 const DUMMY_POSITIONS: Position[] = [
   {
@@ -148,15 +112,33 @@ const DUMMY_POSITIONS: Position[] = [
 ];
 
 // =============================================================================
+// HELPERS
+// =============================================================================
+
+function toInitials(str: string): string {
+  const words = str.trim().split(/\s+/);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+function timeAgo(isoString: string): string {
+  const diff  = Date.now() - new Date(isoString).getTime();
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(mins / 60);
+  const days  = Math.floor(hours / 24);
+  if (days > 0)  return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (mins > 0)  return `${mins}m ago`;
+  return 'Just now';
+}
+
+// =============================================================================
 // SECTION 1 — VOTING COUNTDOWN
-// Live ticking timer with a progress bar showing how far into the voting
-// window we currently are. Both values will come from the backend later.
 // =============================================================================
 
 const VotingCountdown: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState({ h: 12, m: 32, s: 9 });
 
-  // Decrement the clock by one second on each tick
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -175,12 +157,8 @@ const VotingCountdown: React.FC = () => {
 
   return (
     <View style={countdownStyles.wrapper}>
-      {/* Green accent line at the top of the card */}
       <View style={countdownStyles.glowBar} />
-
       <Text style={countdownStyles.label}>⏱ Voting Closes In</Text>
-
-      {/* HH : MM : SS */}
       <View style={countdownStyles.timerRow}>
         <View style={countdownStyles.timeBlock}>
           <Text style={countdownStyles.timeValue}>{pad(timeLeft.h)}</Text>
@@ -197,12 +175,9 @@ const VotingCountdown: React.FC = () => {
           <Text style={countdownStyles.timeUnit}>Sec</Text>
         </View>
       </View>
-
-      {/* Progress bar — hardcoded to 62% until backend supplies elapsed/total */}
       <View style={countdownStyles.progressTrack}>
         <Animated.View style={[countdownStyles.progressBar, { width: '62%' }]} />
       </View>
-
       <Text style={countdownStyles.subText}>April 10, 2026 · Closes at 5:00 PM</Text>
     </View>
   );
@@ -210,24 +185,18 @@ const VotingCountdown: React.FC = () => {
 
 // =============================================================================
 // SECTION 2 — LIVE VOTING BOARD
-// PBB-style ranked leaderboard per position. Switch positions via the tab
-// strip. Bar widths are relative to the leading candidate, not total votes.
 // =============================================================================
 
 const LiveVotingBoard: React.FC = () => {
   const [activePositionId, setActivePositionId] = useState('pres');
-
-  const position = DUMMY_POSITIONS.find(p => p.id === activePositionId)!;
-  // Sort descending so rank 1 is always at the top
+  const position         = DUMMY_POSITIONS.find(p => p.id === activePositionId)!;
   const sortedCandidates = [...position.candidates].sort((a, b) => b.votes - a.votes);
-  const topVotes  = sortedCandidates[0]?.votes ?? 1;
-  const totalVotes = sortedCandidates.reduce((sum, c) => sum + c.votes, 0);
+  const topVotes         = sortedCandidates[0]?.votes ?? 1;
+  const totalVotes       = sortedCandidates.reduce((sum, c) => sum + c.votes, 0);
 
   return (
     <View style={[shared.card, { padding: 0, overflow: 'hidden' }]}>
-
       <View style={{ padding: 16, paddingBottom: 0 }}>
-        {/* Header */}
         <View style={liveStyles.headerRow}>
           <Text style={shared.sectionTitle}>Live Results</Text>
           <View style={liveStyles.livePill}>
@@ -235,8 +204,6 @@ const LiveVotingBoard: React.FC = () => {
             <Text style={liveStyles.livePillText}>LIVE</Text>
           </View>
         </View>
-
-        {/* Position selector tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
           <View style={liveStyles.positionScroll}>
             {DUMMY_POSITIONS.map(pos => (
@@ -253,24 +220,18 @@ const LiveVotingBoard: React.FC = () => {
           </View>
         </ScrollView>
       </View>
-
-      {/* Candidate rows */}
       <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
         {sortedCandidates.map((candidate, idx) => {
           const isLeading   = idx === 0;
           const barWidthPct = Math.round((candidate.votes / topVotes) * 100);
           const sharePct    = Math.round((candidate.votes / totalVotes) * 100);
-
           return (
             <View key={candidate.id} style={liveStyles.candidateRow}>
-              {/* Rank */}
               <View style={liveStyles.rank}>
                 <Text style={[liveStyles.rankText, isLeading && liveStyles.rankFirst]}>
                   {isLeading ? '1st' : `#${idx + 1}`}
                 </Text>
               </View>
-
-              {/* Avatar (initials until real photos are available) */}
               <View style={[
                 liveStyles.candidateAvatar,
                 { backgroundColor: candidate.color + '22' },
@@ -278,8 +239,6 @@ const LiveVotingBoard: React.FC = () => {
               ]}>
                 <Text style={liveStyles.candidateAvatarText}>{candidate.initials}</Text>
               </View>
-
-              {/* Name + relative vote bar */}
               <View style={liveStyles.candidateInfo}>
                 <Text style={liveStyles.candidateName}>{candidate.name}</Text>
                 <View style={liveStyles.candidateBarTrack}>
@@ -290,8 +249,6 @@ const LiveVotingBoard: React.FC = () => {
                   ]} />
                 </View>
               </View>
-
-              {/* Vote count + percentage of total */}
               <View style={liveStyles.candidateVotes}>
                 <Text style={liveStyles.candidateVoteCount}>{candidate.votes.toLocaleString()}</Text>
                 <Text style={[liveStyles.candidateVotePct, isLeading && liveStyles.candidateVotePctLead]}>
@@ -301,7 +258,6 @@ const LiveVotingBoard: React.FC = () => {
             </View>
           );
         })}
-
         <Text style={liveStyles.totalVotes}>{totalVotes.toLocaleString()} total votes cast</Text>
       </View>
     </View>
@@ -309,42 +265,175 @@ const LiveVotingBoard: React.FC = () => {
 };
 
 // =============================================================================
-// SECTION 3 — ANNOUNCEMENT / POLL FEED
-// Filterable list of posts (notices and polls). Each post supports likes and
-// an expandable comment thread where the user can submit new comments.
+// POLL VOTER COMPONENT
+// Before vote: tappable radio-button options
+// After vote:  result bars with %, leading highlight, "your vote" checkmark
 // =============================================================================
 
-// ─── Single poll option bar ───────────────────────────────────────────────────
+const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
+  const { data, isLoading, isError } = usePollResponses(post.id, userId);
+  const { mutateAsync: submitVote, isPending: isSubmitting } = useSubmitPollResponse(post.id);
+  const [pendingOptionId, setPendingOptionId] = useState<string | null>(null);
 
-const PollOptionBar: React.FC<{
-  option: { label: string; votes: number };
-  total: number;
-  isLeading: boolean;
-}> = ({ option, total, isLeading }) => {
-  const pct = Math.round((option.votes / total) * 100);
+  const hasVoted   = data?.hasVoted   ?? false;
+  const myOptionId = data?.myOptionId ?? pendingOptionId;
+  const options    = data?.options    ?? [];
+  const totalVotes = options.reduce((sum, o) => sum + o.responseCount, 0);
+  const showResults = hasVoted || !!pendingOptionId;
+
+  const handleVote = async (optionId: string) => {
+    if (!userId) {
+      Alert.alert('Not signed in', 'You must be signed in to vote.');
+      return;
+    }
+    if (hasVoted || pendingOptionId) return;
+    setPendingOptionId(optionId);
+    try {
+      await submitVote({ pollOptionId: optionId, studentId: userId });
+    } catch (e: any) {
+      setPendingOptionId(null);
+      if (e?.code === '23505') {
+        Alert.alert('Already voted', 'You have already responded to this poll.');
+      } else {
+        Alert.alert('Error', e?.message ?? 'Could not submit your vote. Please try again.');
+      }
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={COLORS.green} />
+      </View>
+    );
+  }
+
+  if (isError || options.length === 0) {
+    return (
+      <View style={{ paddingVertical: 12 }}>
+        <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+          {isError ? 'Could not load poll options.' : 'No options available.'}
+        </Text>
+      </View>
+    );
+  }
+
+  const maxCount = Math.max(...options.map(o => o.responseCount), 1);
+
   return (
-    <View style={feedStyles.pollOption}>
-      <View style={feedStyles.pollOptionHeader}>
-        <Text style={feedStyles.pollOptionLabel}>{option.label}</Text>
-        <Text style={feedStyles.pollOptionPct}>{pct}%</Text>
-      </View>
-      <View style={feedStyles.pollTrack}>
-        <View style={[feedStyles.pollFill, { width: `${pct}%` }, isLeading && feedStyles.pollFillLead]} />
-      </View>
+    <View style={{ marginBottom: 12 }}>
+      {options.map(opt => {
+        const isMyVote  = opt.id === myOptionId;
+        const pct       = totalVotes > 0 ? Math.round((opt.responseCount / totalVotes) * 100) : 0;
+        const isLeading = opt.responseCount > 0 && opt.responseCount === maxCount;
+
+        if (showResults) {
+          return (
+            <View key={opt.id} style={pStyles.resultRow}>
+              <View style={pStyles.resultHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  {isMyVote && (
+                    <Ionicons name="checkmark-circle" size={14} color={COLORS.green} style={{ marginRight: 5 }} />
+                  )}
+                  <Text
+                    style={[pStyles.resultLabel, isMyVote && { color: COLORS.green }]}
+                    numberOfLines={1}
+                  >
+                    {opt.option_text}
+                  </Text>
+                </View>
+                <Text style={[pStyles.resultPct, isLeading && { color: COLORS.green, fontWeight: '700' }]}>
+                  {pct}%
+                </Text>
+              </View>
+              <View style={pStyles.barTrack}>
+                <View style={[
+                  pStyles.barFill,
+                  { width: `${pct}%` },
+                  isMyVote  && { backgroundColor: 'rgba(34,197,94,0.45)' },
+                  isLeading && { backgroundColor: COLORS.green },
+                ]} />
+              </View>
+              <Text style={pStyles.resultCount}>
+                {opt.responseCount} {opt.responseCount === 1 ? 'response' : 'responses'}
+              </Text>
+            </View>
+          );
+        }
+
+        return (
+          <TouchableOpacity
+            key={opt.id}
+            style={pStyles.optionBtn}
+            onPress={() => handleVote(opt.id)}
+            disabled={isSubmitting}
+            activeOpacity={0.7}
+          >
+            {isSubmitting && pendingOptionId === opt.id
+              ? <ActivityIndicator size={14} color={COLORS.green} style={{ marginRight: 10 }} />
+              : <View style={pStyles.optionRadio} />
+            }
+            <Text style={pStyles.optionText}>{opt.option_text}</Text>
+          </TouchableOpacity>
+        );
+      })}
+
+      <Text style={pStyles.totalText}>
+        {totalVotes} {totalVotes === 1 ? 'response' : 'responses'}
+        {showResults ? ' · Refreshes every 15s' : ''}
+      </Text>
     </View>
   );
 };
 
-// ─── Post card (announcement or poll) ────────────────────────────────────────
+const pStyles = {
+  optionBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+  },
+  optionRadio: {
+    width: 16, height: 16, borderRadius: 8,
+    borderWidth: 2, borderColor: COLORS.textMuted, marginRight: 10,
+  },
+  optionText: { color: '#fff', fontSize: 14, flex: 1 },
+  resultRow: { marginBottom: 12 },
+  resultHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 5,
+  },
+  resultLabel: { color: '#fff', fontSize: 13, fontWeight: '500' as const, flex: 1 },
+  resultPct:   { color: COLORS.textMuted, fontSize: 13, fontWeight: '600' as const, marginLeft: 8 },
+  barTrack: {
+    height: 6, backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 4, overflow: 'hidden' as const, marginBottom: 4,
+  },
+  barFill: { height: 6, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
+  resultCount: { fontSize: 11, color: COLORS.textMuted },
+  totalText:   { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
+};
 
-const PostCard: React.FC<{ post: Post }> = ({ post }) => {
-  const [liked, setLiked]                   = useState(false);
+// =============================================================================
+// POST CARD
+// =============================================================================
+
+const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
+  const [liked, setLiked]                     = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
-  const [comments, setComments]             = useState<Comment[]>(post.comments);
-  const [draftComment, setDraftComment]     = useState('');
+  const [comments, setComments]               = useState<Comment[]>([]);
+  const [draftComment, setDraftComment]       = useState('');
 
-  const totalPollVotes = post.pollOptions?.reduce((sum, o) => sum + o.votes, 0) ?? 0;
-  const maxPollVotes   = Math.max(...(post.pollOptions?.map(o => o.votes) ?? [0]));
+  const authorLabel    = 'DLSL COMELEC';
+  const authorInitials = toInitials(authorLabel);
+  const roleLabel      = 'Official';
 
   const handleSubmitComment = () => {
     const trimmed = draftComment.trim();
@@ -358,15 +447,13 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
 
   return (
     <View style={feedStyles.postCard}>
-
-      {/* ── Author info + badge ── */}
       <View style={feedStyles.postHeader}>
         <View style={feedStyles.avatar}>
-          <Text style={feedStyles.avatarText}>{post.authorInitials}</Text>
+          <Text style={feedStyles.avatarText}>{authorInitials}</Text>
         </View>
         <View style={feedStyles.postMeta}>
-          <Text style={feedStyles.postAuthor}>{post.author}</Text>
-          <Text style={feedStyles.postTime}>{post.role} · {post.time}</Text>
+          <Text style={feedStyles.postAuthor}>{authorLabel}</Text>
+          <Text style={feedStyles.postTime}>{roleLabel} · {timeAgo(post.created_at)}</Text>
         </View>
         <View style={[shared.badge, {
           backgroundColor: post.type === 'poll' ? COLORS.greenGlow : 'rgba(255,255,255,0.05)',
@@ -379,68 +466,29 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
         </View>
       </View>
 
-      {/* ── Title ── */}
       {post.title ? <Text style={feedStyles.postTitle}>{post.title}</Text> : null}
 
-      {/* ── Announcement body ── */}
-      {post.type === 'announcement' && post.body
-        ? <Text style={feedStyles.postBody}>{post.body}</Text>
+      {post.type === 'announcement' && post.content
+        ? <Text style={feedStyles.postBody}>{post.content}</Text>
         : null}
 
-      {/* ── Poll bars ── */}
-      {post.type === 'poll' && post.pollOptions ? (
-        <View style={{ marginBottom: 16 }}>
-          {post.pollOptions.map(opt => (
-            <PollOptionBar
-              key={opt.label}
-              option={opt}
-              total={totalPollVotes}
-              isLeading={opt.votes === maxPollVotes}
-            />
-          ))}
-          <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>
-            {totalPollVotes} total responses
-          </Text>
-        </View>
-      ) : null}
+      {post.type === 'poll'
+        ? <PollVoter post={post} userId={userId} />
+        : null}
 
-      {/* ── Like & comment buttons ── */}
       <View style={feedStyles.postActions}>
+        <TouchableOpacity style={feedStyles.postAction} onPress={() => setLiked(v => !v)}>
+          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? '#22c55e' : '#ffffff'} />
+          <Text style={feedStyles.postActionText}>{liked ? 1 : 0}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={feedStyles.postAction} onPress={() => setCommentsVisible(v => !v)}>
+          <Ionicons name="chatbubble-outline" size={18} color="#ffffff" />
+          <Text style={feedStyles.postActionText}>{comments.length} Comments</Text>
+        </TouchableOpacity>
+      </View>
 
-  {/* LIKE BUTTON */}
-      <TouchableOpacity
-        style={feedStyles.postAction}
-        onPress={() => setLiked(v => !v)}
-      >
-        <Ionicons
-          name={liked ? 'heart' : 'heart-outline'}
-          size={18}
-          color={liked ? '#22c55e' : '#ffffff'}
-        />
-
-        <Text style={feedStyles.postActionText}>
-          {post.likes + (liked ? 1 : 0)}
-        </Text>
-      </TouchableOpacity>
-
-      {/* COMMENT BUTTON */}
-      <TouchableOpacity
-        style={feedStyles.postAction}
-        onPress={() => setCommentsVisible(v => !v)}
-      >
-        <Ionicons name="chatbubble-outline" size={18} color="#ffffff" />
-
-        <Text style={feedStyles.postActionText}>
-          {comments.length} Comments
-        </Text>
-      </TouchableOpacity>
-
-</View>
-
-      {/* ── Expandable comment thread ── */}
       {commentsVisible && (
         <View style={feedStyles.commentSection}>
-          {/* Existing comments */}
           {comments.map(c => (
             <View key={c.id} style={feedStyles.comment}>
               <View style={feedStyles.commentAvatar}>
@@ -452,8 +500,6 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
               </View>
             </View>
           ))}
-
-          {/* New comment input row */}
           <View style={feedStyles.commentInput}>
             <View style={feedStyles.commentAvatar}>
               <Text style={feedStyles.commentAvatarText}>YO</Text>
@@ -478,20 +524,23 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
   );
 };
 
-// ─── Feed container with filter tabs ─────────────────────────────────────────
+// =============================================================================
+// ANNOUNCEMENT FEED
+// =============================================================================
 
 type FeedTab = 'all' | 'announcements' | 'polls';
 
 const FEED_TABS: { key: FeedTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'all', label: 'All', icon: 'layers-outline' },
+  { key: 'all',           label: 'All',     icon: 'layers-outline'    },
   { key: 'announcements', label: 'Notices', icon: 'megaphone-outline' },
-  { key: 'polls', label: 'Polls', icon: 'bar-chart-outline' },
+  { key: 'polls',         label: 'Polls',   icon: 'bar-chart-outline' },
 ];
 
-const AnnouncementFeed: React.FC = () => {
+const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
+  const { data: rawPosts, isLoading, isError, error } = usePosts();
 
-  const filteredPosts = DUMMY_FEED.filter(post => {
+  const filteredPosts = ((rawPosts ?? []) as RawPost[]).filter(post => {
     if (activeTab === 'all')           return true;
     if (activeTab === 'announcements') return post.type === 'announcement';
     if (activeTab === 'polls')         return post.type === 'poll';
@@ -500,15 +549,11 @@ const AnnouncementFeed: React.FC = () => {
 
   return (
     <View>
-      {/* Tabs */}
       <View style={feedStyles.tabRow}>
         {FEED_TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
-            style={[
-              feedStyles.tab,
-              activeTab === tab.key && feedStyles.tabActive,
-            ]}
+            style={[feedStyles.tab, activeTab === tab.key && feedStyles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
             <Ionicons
@@ -517,108 +562,116 @@ const AnnouncementFeed: React.FC = () => {
               color={activeTab === tab.key ? '#fff' : '#9ca3af'}
               style={{ marginRight: 6 }}
             />
-
-            <Text
-              style={[
-                feedStyles.tabText,
-                activeTab === tab.key && feedStyles.tabTextActive,
-              ]}
-            >
+            <Text style={[feedStyles.tabText, activeTab === tab.key && feedStyles.tabTextActive]}>
               {tab.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Posts (THIS WAS MISSING) */}
-      <View>
-        {filteredPosts.map(post => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </View>
+      {isLoading && (
+        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.green} />
+          <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13 }}>Loading posts…</Text>
+        </View>
+      )}
+
+      {isError && (
+        <View style={{ paddingVertical: 32, alignItems: 'center', paddingHorizontal: 24 }}>
+          <Ionicons name="cloud-offline-outline" size={32} color={COLORS.textMuted} />
+          <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13, textAlign: 'center' }}>
+            Could not load posts.{'\n'}{(error as Error)?.message ?? 'Please try again.'}
+          </Text>
+        </View>
+      )}
+
+      {!isLoading && !isError && filteredPosts.length === 0 && (
+        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+          <Ionicons name="file-tray-outline" size={32} color={COLORS.textMuted} />
+          <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13 }}>No posts yet.</Text>
+        </View>
+      )}
+
+      {!isLoading && !isError && (
+        <View>
+          {filteredPosts.map(post => (
+            <PostCard key={post.id} post={post} userId={userId} />
+          ))}
+        </View>
+      )}
     </View>
   );
 };
 
 // =============================================================================
 // MAIN SCREEN
-// Root FlatList drives all scrolling so everything moves together.
-// KeyboardAvoidingView lifts the comment input above the keyboard on iOS/Android.
 // =============================================================================
 
 type SectionKey = 'countdown' | 'live' | 'feed';
-
 const SECTIONS: { type: SectionKey }[] = [
   { type: 'countdown' },
   { type: 'live' },
   { type: 'feed' },
 ];
 
-const renderSection = ({ item }: { item: { type: SectionKey } }) => {
-  switch (item.type) {
-    case 'countdown':
-      return <VotingCountdown />;
-    case 'live':
-      return (
-        <>
-          <Text style={[shared.sectionTitle, { marginBottom: 12 }]}>Live Voting</Text>
-          <LiveVotingBoard />
-        </>
-      );
-    case 'feed':
-      return (
-        <View style={{ marginTop: 8 }}>
-          <AnnouncementFeed />
-        </View>
-      );
-    default:
-      return null;
-  }
-};
-
 export default function DashboardScreen() {
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const renderSection = ({ item }: { item: { type: SectionKey } }) => {
+    switch (item.type) {
+      case 'countdown': return <VotingCountdown />;
+      case 'live':
+        return (
+          <>
+            <Text style={[shared.sectionTitle, { marginBottom: 12 }]}>Live Voting</Text>
+            <LiveVotingBoard />
+          </>
+        );
+      case 'feed':
+        return (
+          <View style={{ marginTop: 8 }}>
+            <AnnouncementFeed userId={userId} />
+          </View>
+        );
+      default: return null;
+    }
+  };
+
   return (
     <SafeAreaView style={screenStyles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
-
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: COLORS.bg }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-          <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-
-            {/* ── App header ── */}
-            <View style={screenStyles.header}>
-              <View>
-                <Text style={screenStyles.headerLogoText}>AnimoQuorum</Text>
-                <Text style={screenStyles.headerSub}>DLSL COMELEC · SY 2025–2026</Text>
-              </View>
-              {/* TODO: replace with a real profile/avatar button */}
-              <View style={screenStyles.profileHeader}>
-                <Ionicons name="person-circle-outline" size={22} color="#fff" />
-                <Text style={screenStyles.profileBtn}>Profile</Text>
-              </View>
-            </View>
-
-            {/* ── Scrollable body ── */}
-            <FlatList
-              data={SECTIONS}
-              keyExtractor={item => item.type}
-              renderItem={renderSection}
-              showsVerticalScrollIndicator={false}
-              style={{ flex: 1, backgroundColor: COLORS.bg }}
-              keyboardDismissMode='on-drag'
-              keyboardShouldPersistTaps='handled'
-              contentContainerStyle={[
-                screenStyles.scrollContent,
-                { flexGrow: 1, paddingBottom: 0 },
-              ]}
-            />
-
+      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+        <View style={screenStyles.header}>
+          <View>
+            <Text style={screenStyles.headerLogoText}>AnimoQuorum</Text>
+            <Text style={screenStyles.headerSub}>DLSL COMELEC · SY 2025–2026</Text>
+          </View>
+          <View style={screenStyles.profileHeader}>
+            <Ionicons name="person-circle-outline" size={22} color="#fff" />
+            <Text style={screenStyles.profileBtn}>LightOrDark</Text>
           </View>
         </View>
-      </KeyboardAvoidingView>
+        <FlatList
+          data={SECTIONS}
+          keyExtractor={item => item.type}
+          renderItem={renderSection}
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1, backgroundColor: COLORS.bg }}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[screenStyles.scrollContent, { flexGrow: 1, paddingBottom: 0 }]}
+        />
+      </View>
     </SafeAreaView>
   );
 }
