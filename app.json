@@ -2,12 +2,17 @@
   "expo": {
     "name": "animo-quorum",
     "slug": "animo-quorum",
+    "main": "index.ts",
     "android": {
-      "softwareKeyboardLayoutMode": "adjustResize"
+      "softwareKeyboardLayoutMode": "adjustResize",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-router"
+      "expo-secure-store"
     ],
     "splash": {
       "image": "./assets/images/logoCrop.png",

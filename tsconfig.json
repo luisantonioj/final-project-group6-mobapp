@@ -2,6 +2,16 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "types": ["node"]
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+    "paths": {
+      "@nav/*": ["./app/navigation/*"],
+      "@screens/*": ["./app/screens/*"],
+      "@hooks/*": ["./app/hooks/*"],
+      "@stores/*": ["./app/stores/*"],
+      "@utils/*": ["./app/utils/*"],
+      "@components/*": ["./app/components/*"]
+    }
   }
 }

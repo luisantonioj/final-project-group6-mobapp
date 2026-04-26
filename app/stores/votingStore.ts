@@ -1,3 +1,28 @@
+/**
+ * votingStore.ts — Local voting selection state
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Tracks which candidate a student has selected per position BEFORE submission.
+ * This state is local only — nothing is written to Supabase until VoteConfirmScreen
+ * calls useCastVote() for each selection.
+ *
+ * USAGE IN BALLOT SCREENS:
+ * ─────────────────────────────────────────────────────────────────────────────
+ *   const { selectedCandidates, selectCandidate, reset } = useVotingStore();
+ *
+ *   // Select a candidate for a position:
+ *   selectCandidate(positionId, candidateId);
+ *
+ *   // Check if a position already has a selection:
+ *   const hasVoted = !!selectedCandidates[positionId];
+ *
+ *   // After successful submission in VoteConfirmScreen:
+ *   reset(); // clears all selections
+ *
+ * NOTE: This store does NOT persist across app restarts. If the student
+ * closes the app mid-voting, their selections are lost. This is intentional
+ * — the UNIQUE DB constraint prevents accidental double-votes anyway.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 import { create } from 'zustand';
 
 interface VotingState {

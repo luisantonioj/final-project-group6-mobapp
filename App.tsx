@@ -1,54 +1,109 @@
-import { useEffect } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
-
-import DashboardScreen from './app/screens/DashboardScreen/DashboardScreen';
-import { QueryProvider } from './app/providers/QueryProvider';
-import { supabase } from './app/utils/supabase';
+/**
+ * App.tsx — AnimoQuorum root
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Responsibilities:
+ *   1. Restore persisted Supabase session on launch
+ *   2. Listen for sign-in / sign-out events
+ *   3. Request push notification permissions once on mount
+ *   4. Wire notification tap listener (cleaned up on unmount)
+ *   5. Wire provider tree around RootNavigator
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+import 'react-native-gesture-handler';
+import { useEffect }           from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider }    from 'react-native-safe-area-context';
+import { StatusBar }           from 'expo-status-bar';
+import { QueryProvider }       from './app/providers/QueryProvider';
+import { RootNavigator }       from './app/navigation/RootNavigator';
+import { supabase }            from './app/utils/supabase';
+import {
+  registerForNotificationsAsync,
+  addNotificationResponseReceivedListener,
+} from './app/notifications/notificationService';
 import { useAuthStore } from './app/stores/authStore';
 
 export default function App() {
-  const { setSession, clear } = useAuthStore();
+  const { setSession, setRole, setProfile, setInitialized, clear } = useAuthStore();
 
   useEffect(() => {
-    // Restore session on app launch
+    // ── 1. Request notification permissions on mount ──────────────────────────
+    registerForNotificationsAsync();
+
+    // ── 2. Handle notification tap interactions ───────────────────────────────
+    const unsubscribe = addNotificationResponseReceivedListener();
+
+    // ── 3. Restore persisted session ─────────────────────────────────────────
+    // onAuthStateChange handles session restore via INITIAL_SESSION / SIGNED_IN.
+    // getSession is only needed as a fallback for the no-session case.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      if (!session) setInitialized(true);
     });
 
-    // Listen for sign in / sign out
+    // ── 4. Auth state listener ────────────────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session) setSession(session);
-        else clear();
+      async (_event, session) => {
+
+        // Ignore undefined/noise events
+        if (!_event) return;
+
+        // Skip TOKEN_REFRESHED — only update session, don't re-fetch role
+        if (_event === 'TOKEN_REFRESHED') {
+          if (session) setSession(session);
+          return;
+        }
+
+        try {
+          if (session) {
+            setSession(session);
+
+            // Query 1 — fetch user profile
+            const { data: userData, error: userError } = await supabase
+              .from('Users')
+              .select('*')
+              .eq('auth_id', session.user.id)
+              .single();
+
+            if (userError) throw new Error(userError.message);
+
+            if (userData) {
+              // Query 2 — fetch roles separately
+              const { data: rolesData, error: rolesError } = await supabase
+                .from('UserRoles')
+                .select('Roles(role_name)')
+                .eq('user_id', userData.id);
+
+              if (rolesError) throw new Error(rolesError.message);
+
+              const roleNames = (rolesData ?? []).map((ur: any) => ur?.Roles?.role_name);
+              const roleName  = roleNames.includes('Admin') ? 'Admin' : (roleNames[0] ?? 'Student');
+              setRole(roleName === 'Admin' ? 'Admin' : 'Student');
+              setProfile(userData as any);
+            }
+          } else {
+            clear();
+          }
+        } catch (e) {
+          console.error('Auth error:', e);
+        } finally {
+          setInitialized(true);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, [clear, setSession]);
+    return () => {
+      unsubscribe();
+      subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <SafeAreaProvider>
-
-      {/* Ensures status bar is visible and styled */}
       <StatusBar style="light" />
-
       <QueryProvider>
-
-        {/* Prevent keyboard from covering inputs */}
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-
-          {/* Tap outside inputs to dismiss keyboard */}
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <DashboardScreen />
-          </TouchableWithoutFeedback>
-
-        </KeyboardAvoidingView>
-
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
       </QueryProvider>
     </SafeAreaProvider>
   );
