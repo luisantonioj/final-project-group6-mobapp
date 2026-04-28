@@ -1,369 +1,536 @@
-// screens/admin/AdminCandidatesScreen.tsx
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-
-import { useCandidates, useDeleteCandidate } from '../../hooks/useCandidates';
-import { usePositions }                      from '../../hooks/usePositions';
-import { CandidateModal, CandidateRow }      from '../../components/CandidateModal';
-import { supabase }                          from '../../utils/supabase';
-
-import {
-  COLORS,
-  FONT,
-  SPACE,
-  RADIUS,
-  screenStyles,
-  filterStyles,
-  cardStyles,
-  formStyles,
-  emptyStyles,
-} from './AdminCandidatesScreen.styles';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface PositionRow {
-  id:            string;
-  position_name: string;
-  display_order: number;
-}
-
-interface FormState {
-  name:        string;
-  partylist:   string;
-  position_id: string;
-  email:       string;
-  credentials: string;
-  platform:    string;
-}
-
-const EMPTY_FORM: FormState = {
-  name:        '',
-  partylist:   '',
-  position_id: '',
-  email:       '',
-  credentials: '',
-  platform:    '',
-};
-
-// ─── Dummy data shown when DB has no records yet ──────────────────────────────
-const DUMMY_POSITIONS: PositionRow[] = [
-  { id: 'p1', position_name: 'Executive President',      display_order: 1 },
-  { id: 'p2', position_name: 'Executive Vice President', display_order: 2 },
-  { id: 'p3', position_name: 'Secretary General',        display_order: 3 },
-  { id: 'p4', position_name: 'Treasurer',                display_order: 4 },
-  { id: 'p5', position_name: 'Auditor',                  display_order: 5 },
-  { id: 'p6', position_name: 'Public Relations Officer', display_order: 6 },
-  { id: 'p7', position_name: '1st Year Representative',  display_order: 7 },
-  { id: 'p8', position_name: '2nd Year Representative',  display_order: 8 },
-];
-
-const DUMMY_CANDIDATES: CandidateRow[] = [
-  {
-    id: 'c1', name: 'Maria Santos',
-    partylist: 'Alyansa ng Pagbabago',
-    position_id: 'p1', photo_url: null,
-    email: 'maria.santos@dlsl.edu.ph',
-    credentials: "Former Student Council Secretary · Dean's Lister 6 semesters · Model Lasallian Awardee 2024",
-    platform: 'Strengthen academic support programs, improve campus Wi-Fi, and establish a 24/7 student wellness hotline.',
-    Positions: { position_name: 'Executive President' },
-  },
-  {
-    id: 'c2', name: 'Juan dela Cruz',
-    partylist: 'Sama-Sama',
-    position_id: 'p1', photo_url: null,
-    email: 'juan.delacruz@dlsl.edu.ph',
-    credentials: 'President of JPIA · 2x Campus Journalism Awardee · DLSL Ambassador 2023',
-    platform: 'Transparent governance, expanded scholarships, and stronger student-admin linkages.',
-    Positions: { position_name: 'Executive President' },
-  },
-  {
-    id: 'c3', name: 'Angela Reyes',
-    partylist: 'Alyansa ng Pagbabago',
-    position_id: 'p2', photo_url: null,
-    email: 'angela.reyes@dlsl.edu.ph',
-    credentials: 'VP of CCS Student Council · Academic Excellence Awardee · Coding Bootcamp Facilitator',
-    platform: 'Digitize student services, create a centralized org calendar, push for mental health days.',
-    Positions: { position_name: 'Executive Vice President' },
-  },
-  {
-    id: 'c4', name: 'Carlos Mendoza',
-    partylist: 'Sama-Sama',
-    position_id: 'p3', photo_url: null,
-    email: 'carlos.mendoza@dlsl.edu.ph',
-    credentials: 'Secretary of ROTC · Publication Coordinator · Consistent Honors Student',
-    platform: 'Streamline student-admin communication through a transparent bulletin system.',
-    Positions: { position_name: 'Secretary General' },
-  },
-  {
-    id: 'c5', name: 'Patricia Lim',
-    partylist: 'Alyansa ng Pagbabago',
-    position_id: 'p4', photo_url: null,
-    email: 'patricia.lim@dlsl.edu.ph',
-    credentials: 'Treasurer of Accounting Society · CPA Board Passer · Accounting Excellence Awardee',
-    platform: 'Strict financial transparency, student org budget reform, and accessible org funding.',
-    Positions: { position_name: 'Treasurer' },
-  },
-  {
-    id: 'c6', name: 'Renzo Garcia',
-    partylist: 'Sama-Sama',
-    position_id: 'p5', photo_url: null,
-    email: 'renzo.garcia@dlsl.edu.ph',
-    credentials: 'Internal Auditor of JPIA · Accounting Honor Society Member · Leadership Excellence Awardee',
-    platform: 'Implement independent audit reviews for all student government financial transactions.',
-    Positions: { position_name: 'Auditor' },
-  },
-  {
-    id: 'c7', name: 'Sofia Cruz',
-    partylist: 'Alyansa ng Pagbabago',
-    position_id: 'p6', photo_url: null,
-    email: 'sofia.cruz@dlsl.edu.ph',
-    credentials: 'Marketing Head of CEA Council · Social Media Manager for DLSL Events · PR Excellence Awardee',
-    platform: "Revamp DLSL's student social media presence and launch a unified student news platform.",
-    Positions: { position_name: 'Public Relations Officer' },
-  },
-  {
-    id: 'c8', name: 'Liam Torres',
-    partylist: 'Sama-Sama',
-    position_id: 'p7', photo_url: null,
-    email: 'liam.torres@dlsl.edu.ph',
-    credentials: 'DLSL Freshman Class President 2024 · Debate Team Captain · Academic Excellence Awardee',
-    platform: 'Create a dedicated first-year orientation committee and peer mentoring network.',
-    Positions: { position_name: '1st Year Representative' },
-  },
-];
-
-// ─── Helper ───────────────────────────────────────────────────────────────────
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map(w => w[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
-
-// ─── Upsert mutation (no existing hook covers create+update) ──────────────────
-function useUpsertCandidate() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, data }: { id?: string; data: FormState }) => {
-      const payload = {
-        name:        data.name.trim(),
-        partylist:   data.partylist.trim()   || null,
-        position_id: data.position_id,
-        email:       data.email.trim()       || null,
-        credentials: data.credentials.trim() || null,
-        platform:    data.platform.trim()    || null,
-      };
-      if (id) {
-        const { error } = await supabase.from('Candidates').update(payload).eq('id', id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('Candidates').insert(payload);
-        if (error) throw error;
+ // screens/admin/AdminCandidatesScreen.tsx
+  import React, { useState, useCallback, useMemo, useEffect } from 'react';
+  import {
+    View,
+    Text,
+    ScrollView,
+    TouchableOpacity,
+    Modal,
+    TextInput,
+    Alert,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Image,
+  } from 'react-native';
+  import { SafeAreaView } from 'react-native-safe-area-context';
+  import * as ImagePicker from 'expo-image-picker';
+  
+  import {
+    useCandidateStore,
+    DEPARTMENTS,
+    EXECUTIVE_POSITIONS,
+    DEPARTMENT_POSITIONS,
+    POSITION_IDS,
+  } from '../../stores/candidateStore';
+  import type { Candidate, Department, Position } from '../../stores/candidateStore';
+  
+  import { CandidateModal } from '../../components/CandidateModal';
+  import type { CandidateRow } from '../../components/CandidateModal';
+  
+  import {
+    COLORS,
+    FONT,
+    SPACE,
+    RADIUS,
+    screenStyles,
+    filterStyles,
+    cardStyles,
+    formStyles,
+    emptyStyles,
+  } from './AdminCandidatesScreen.styles';
+  
+  // ─── Types ────────────────────────────────────────────────────────────────────
+  
+  interface FormState {
+    name:        string;
+    partylist:   string;
+    department:  string; // '' | Department
+    position:    string; // '' | Position
+    email:       string;
+    credentials: string;
+    platform:    string;
+    photo_uri:   string | null;
+  }
+  
+  interface FormErrors {
+    name?:      string;
+    department?: string;
+    position?:  string;
+    email?:     string;
+    duplicate?: string;
+  }
+  
+  const EMPTY_FORM: FormState = {
+    name:        '',
+    partylist:   '',
+    department:  '',
+    position:    '',
+    email:       '',
+    credentials: '',
+    platform:    '',
+    photo_uri:   null,
+  };
+  
+  // ─── Helpers ──────────────────────────────────────────────────────────────────
+  
+  function getInitials(name: string): string {
+    return name
+      .split(' ')
+      .slice(0, 2)
+      .map(w => w[0] ?? '')
+      .join('')
+      .toUpperCase();
+  }
+  
+  function resolvePositionId(department: string, position: string): string {
+    const execPositions: readonly string[] = EXECUTIVE_POSITIONS;
+    if (execPositions.includes(position)) {
+      return POSITION_IDS[position] ?? `pos-unknown-${position}`;
+    }
+    return POSITION_IDS[`${department}-${position}`] ?? `pos-unknown-${department}-${position}`;
+  }
+  
+  function generateCandidateId(): string {
+    return `cand-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+  }
+  
+  /** Adapt new-store Candidate → CandidateRow expected by CandidateModal */
+  function toModalRow(c: Candidate): CandidateRow {
+    return {
+      id:          c.id,
+      name:        c.name,
+      partylist:   c.partylist || null,
+      position_id: c.position_id,
+      email:       c.email,
+      credentials: c.credentials,
+      platform:    c.platform,
+      photo_url:   c.photo_url,
+      Positions:   { position_name: c.position_name },
+    };
+  }
+  
+  function validateForm(
+    form: FormState,
+    candidates: Candidate[],
+    editId: string | null,
+  ): FormErrors {
+    const errors: FormErrors = {};
+    const trimmedName = form.name.trim();
+  
+    if (!trimmedName) {
+      errors.name = 'Full name is required.';
+    } else if (trimmedName.length < 3) {
+      errors.name = 'Name must be at least 3 characters.';
+    }
+  
+    if (!form.department) {
+      errors.department = 'Department is required.';
+    }
+  
+    if (!form.position) {
+      errors.position = 'Position is required.';
+    }
+  
+    if (form.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim())) {
+        errors.email = 'Please enter a valid email address.';
       }
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['candidates'] }),
-  });
-}
-
-// ─── Position pill selector inside the form ───────────────────────────────────
-const PositionSelector: React.FC<{
-  positions: PositionRow[];
-  selected:  string;
-  onChange:  (id: string) => void;
-}> = ({ positions, selected, onChange }) => (
-  <ScrollView
-    horizontal
-    showsHorizontalScrollIndicator={false}
-    style={formStyles.positionScrollRow}
-  >
-    <View style={formStyles.positionInnerRow}>
-      {positions.map(p => (
-        <TouchableOpacity
-          key={p.id}
-          style={[formStyles.positionTab, selected === p.id && formStyles.positionTabActive]}
-          onPress={() => onChange(p.id)}
-        >
-          <Text style={[
-            formStyles.positionTabText,
-            selected === p.id && formStyles.positionTabTextActive,
-          ]}>
-            {p.position_name}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  </ScrollView>
-);
-
-// ─── Add / Edit bottom sheet ──────────────────────────────────────────────────
-const CandidateFormSheet: React.FC<{
-  visible:   boolean;
-  editId:    string | null;
-  initial:   FormState;
-  positions: PositionRow[];
-  onClose:   () => void;
-  onSave:    (id: string | null, data: FormState) => void;
-  isSaving:  boolean;
-}> = ({ visible, editId, initial, positions, onClose, onSave, isSaving }) => {
-  const [form, setForm] = useState<FormState>(initial);
-
-  useEffect(() => { setForm(initial); }, [initial]);
-
-  const set = (field: keyof FormState, value: string) =>
-    setForm(prev => ({ ...prev, [field]: value }));
-
-  const canSave = form.name.trim().length > 0 && form.position_id.length > 0;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={formStyles.overlay}>
-          <ScrollView
-            style={formStyles.sheet}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
+    }
+  
+    if (trimmedName && form.department && form.position) {
+      const isDuplicate = candidates.some(
+        c =>
+          c.id !== editId &&
+          c.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+          c.department === form.department &&
+          c.position_name === form.position,
+      );
+      if (isDuplicate) {
+        errors.duplicate = `"${trimmedName}" already exists under ${form.department} — ${form.position}.`;
+      }
+    }
+  
+    return errors;
+  }
+  
+  // ─── Department selector (pill row) ──────────────────────────────────────────
+  
+  const DepartmentSelector: React.FC<{
+    selected: string;
+    onChange: (dept: Department) => void;
+  }> = ({ selected, onChange }) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={formStyles.positionScrollRow}
+    >
+      <View style={formStyles.positionInnerRow}>
+        {DEPARTMENTS.map(d => (
+          <TouchableOpacity
+            key={d}
+            style={[formStyles.positionTab, selected === d && formStyles.positionTabActive]}
+            onPress={() => onChange(d)}
           >
-            <View style={formStyles.handle} />
-
-            <Text style={formStyles.title}>
-              {editId ? 'Edit Candidate' : 'Add Candidate'}
+            <Text style={[
+              formStyles.positionTabText,
+              selected === d && formStyles.positionTabTextActive,
+            ]}>
+              {d}
             </Text>
-
-            <Text style={formStyles.fieldLabel}>Full Name *</Text>
-            <TextInput
-              style={formStyles.input}
-              placeholder="e.g. Juan dela Cruz"
-              placeholderTextColor={COLORS.textMuted}
-              value={form.name}
-              onChangeText={v => set('name', v)}
-            />
-
-            <Text style={formStyles.fieldLabel}>Partylist</Text>
-            <TextInput
-              style={formStyles.input}
-              placeholder="e.g. Alyansa ng Pagbabago"
-              placeholderTextColor={COLORS.textMuted}
-              value={form.partylist}
-              onChangeText={v => set('partylist', v)}
-            />
-
-            <Text style={formStyles.fieldLabel}>Position *</Text>
-            <PositionSelector
-              positions={positions}
-              selected={form.position_id}
-              onChange={id => set('position_id', id)}
-            />
-
-            <Text style={formStyles.fieldLabel}>School Email</Text>
-            <TextInput
-              style={formStyles.input}
-              placeholder="candidate@dlsl.edu.ph"
-              placeholderTextColor={COLORS.textMuted}
-              value={form.email}
-              onChangeText={v => set('email', v)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Text style={formStyles.fieldLabel}>Credentials</Text>
-            <TextInput
-              style={[formStyles.input, formStyles.textArea]}
-              placeholder="Academic achievements, leadership roles…"
-              placeholderTextColor={COLORS.textMuted}
-              value={form.credentials}
-              onChangeText={v => set('credentials', v)}
-              multiline
-            />
-
-            <Text style={formStyles.fieldLabel}>Platform</Text>
-            <TextInput
-              style={[formStyles.input, formStyles.textArea]}
-              placeholder="Key advocacies and plans for the student body…"
-              placeholderTextColor={COLORS.textMuted}
-              value={form.platform}
-              onChangeText={v => set('platform', v)}
-              multiline
-            />
-
-            <View style={formStyles.divider} />
-
-            <View style={formStyles.btnRow}>
-              <TouchableOpacity
-                style={formStyles.btnCancel}
-                onPress={onClose}
-                disabled={isSaving}
-              >
-                <Text style={formStyles.btnCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  formStyles.btnSave,
-                  (!canSave || isSaving) && formStyles.btnSaveDisabled,
-                ]}
-                onPress={() => canSave && onSave(editId, form)}
-                disabled={!canSave || isSaving}
-              >
-                {isSaving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={formStyles.btnSaveText}>
-                      {editId ? 'Save Changes' : 'Add Candidate'}
-                    </Text>
-                }
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ height: 24 }} />
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
   );
-};
-
-// ─── Single candidate card ────────────────────────────────────────────────────
-const CandidateCard: React.FC<{
-  candidate: CandidateRow;
-  onView:    () => void;
-  onEdit:    () => void;
-  onDelete:  () => void;
-}> = ({ candidate, onView, onEdit, onDelete }) => {
-  const positionName =
-    (candidate.Positions as { position_name: string } | null | undefined)
-      ?.position_name ?? '—';
-
-  return (
+  
+  // ─── Position pill selector ───────────────────────────────────────────────────
+  
+  const PositionSelector: React.FC<{
+    positions: readonly string[];
+    selected:  string;
+    onChange:  (pos: string) => void;
+  }> = ({ positions, selected, onChange }) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={formStyles.positionScrollRow}
+    >
+      <View style={formStyles.positionInnerRow}>
+        {positions.map(p => (
+          <TouchableOpacity
+            key={p}
+            style={[formStyles.positionTab, selected === p && formStyles.positionTabActive]}
+            onPress={() => onChange(p)}
+          >
+            <Text style={[
+              formStyles.positionTabText,
+              selected === p && formStyles.positionTabTextActive,
+            ]}>
+              {p}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+  
+  // ─── Add / Edit form bottom sheet ─────────────────────────────────────────────
+  
+  const CandidateFormSheet: React.FC<{
+    visible:    boolean;
+    editId:     string | null;
+    initial:    FormState;
+    candidates: Candidate[];
+    onClose:    () => void;
+    onSave:     (id: string | null, data: FormState) => void;
+  }> = ({ visible, editId, initial, candidates, onClose, onSave }) => {
+    const [form,          setFormState]   = useState<FormState>(initial);
+    const [errors,        setErrors]      = useState<FormErrors>({});
+    const [saveAttempted, setSaveAttempted] = useState(false);
+  
+    useEffect(() => {
+      setFormState(initial);
+      setErrors({});
+      setSaveAttempted(false);
+    }, [initial, visible]);
+  
+    const setField = useCallback((field: keyof FormState, value: string | null) => {
+      setFormState(prev => {
+        const next: FormState = { ...prev, [field]: value ?? '' };
+        // Reset position whenever department changes
+        if (field === 'department') next.position = '';
+        return next;
+      });
+    }, []);
+  
+    const availablePositions: readonly string[] = useMemo(() => {
+      if (!form.department) return [];
+      return form.department === 'Executive Council'
+        ? EXECUTIVE_POSITIONS
+        : DEPARTMENT_POSITIONS;
+    }, [form.department]);
+  
+    const currentErrors = useMemo(
+      () => validateForm(form, candidates, editId),
+      [form, candidates, editId],
+    );
+  
+    const isValid = Object.keys(currentErrors).length === 0
+      && form.name.trim().length >= 3
+      && !!form.department
+      && !!form.position;
+  
+    const visibleErrors: FormErrors = saveAttempted ? currentErrors : {};
+  
+    const handlePickPhoto = useCallback(async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setField('photo_uri', result.assets[0].uri);
+      }
+    }, [setField]);
+  
+    const handleSave = useCallback(() => {
+      setSaveAttempted(true);
+      if (!isValid) return;
+      onSave(editId, form);
+    }, [isValid, editId, form, onSave]);
+  
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={formStyles.overlay}>
+            <ScrollView
+              style={formStyles.sheet}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View style={formStyles.handle} />
+  
+              <Text style={formStyles.title}>
+                {editId ? 'Edit Candidate' : 'Add Candidate'}
+              </Text>
+  
+              {/* ── Photo ─────────────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Photo</Text>
+              <View style={{ alignItems: 'center', marginBottom: SPACE.md }}>
+                <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.8}>
+                  {form.photo_uri ? (
+                    <Image
+                      source={{ uri: form.photo_uri }}
+                      style={{
+                        width: 90, height: 90, borderRadius: 45,
+                        borderWidth: 2, borderColor: COLORS.green,
+                      }}
+                    />
+                  ) : (
+                    <View style={{
+                      width: 90, height: 90, borderRadius: 45,
+                      backgroundColor: COLORS.bgElevated,
+                      borderWidth: 2, borderColor: COLORS.borderBright,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {form.name.trim()
+                        ? <Text style={{ fontSize: FONT.xl, fontWeight: '800', color: COLORS.green }}>
+                            {getInitials(form.name)}
+                          </Text>
+                        : <Text style={{ fontSize: 28, color: COLORS.textMuted }}>📷</Text>
+                      }
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handlePickPhoto}
+                  style={{
+                    marginTop: SPACE.sm,
+                    paddingHorizontal: SPACE.md,
+                    paddingVertical: SPACE.xs,
+                    borderRadius: RADIUS.pill,
+                    borderWidth: 1,
+                    borderColor: COLORS.borderBright,
+                    backgroundColor: COLORS.bgElevated,
+                  }}
+                >
+                  <Text style={{ fontSize: FONT.sm, color: COLORS.textSub, fontWeight: '600' }}>
+                    {form.photo_uri ? 'Change Photo' : 'Upload from Gallery'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+  
+              {/* ── Full Name ─────────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Full Name *</Text>
+              <TextInput
+                style={[
+                  formStyles.input,
+                  !!visibleErrors.name && { borderColor: COLORS.red },
+                ]}
+                placeholder="e.g. Juan dela Cruz"
+                placeholderTextColor={COLORS.textMuted}
+                value={form.name}
+                onChangeText={v => setField('name', v)}
+              />
+              {visibleErrors.name
+                ? <Text style={{ fontSize: FONT.xs, color: COLORS.red, marginTop: 3 }}>
+                    {visibleErrors.name}
+                  </Text>
+                : null
+              }
+  
+              {/* ── Partylist ─────────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Partylist</Text>
+              <TextInput
+                style={formStyles.input}
+                placeholder="e.g. Animo Party"
+                placeholderTextColor={COLORS.textMuted}
+                value={form.partylist}
+                onChangeText={v => setField('partylist', v)}
+              />
+  
+              {/* ── Department ────────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Department *</Text>
+              <DepartmentSelector
+                selected={form.department}
+                onChange={d => setField('department', d)}
+              />
+              {visibleErrors.department
+                ? <Text style={{ fontSize: FONT.xs, color: COLORS.red, marginTop: 3 }}>
+                    {visibleErrors.department}
+                  </Text>
+                : null
+              }
+  
+              {/* ── Position ──────────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Position *</Text>
+              {form.department ? (
+                <PositionSelector
+                  positions={availablePositions}
+                  selected={form.position}
+                  onChange={p => setField('position', p)}
+                />
+              ) : (
+                <Text style={{
+                  fontSize: FONT.sm, color: COLORS.textMuted,
+                  fontStyle: 'italic', marginBottom: SPACE.sm,
+                }}>
+                  Select a department first.
+                </Text>
+              )}
+              {visibleErrors.position
+                ? <Text style={{ fontSize: FONT.xs, color: COLORS.red, marginTop: 3 }}>
+                    {visibleErrors.position}
+                  </Text>
+                : null
+              }
+  
+              {/* ── Duplicate warning ─────────────────────────────────────── */}
+              {visibleErrors.duplicate
+                ? <View style={{
+                    backgroundColor: COLORS.redFaint,
+                    borderRadius: RADIUS.md,
+                    borderWidth: 1,
+                    borderColor: COLORS.redBorder,
+                    padding: SPACE.sm,
+                    marginTop: SPACE.xs,
+                  }}>
+                    <Text style={{ fontSize: FONT.sm, color: COLORS.red }}>
+                      {visibleErrors.duplicate}
+                    </Text>
+                  </View>
+                : null
+              }
+  
+              {/* ── School Email ──────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>School Email</Text>
+              <TextInput
+                style={[
+                  formStyles.input,
+                  !!visibleErrors.email && { borderColor: COLORS.red },
+                ]}
+                placeholder="candidate@dlsl.edu.ph"
+                placeholderTextColor={COLORS.textMuted}
+                value={form.email}
+                onChangeText={v => setField('email', v)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              {visibleErrors.email
+                ? <Text style={{ fontSize: FONT.xs, color: COLORS.red, marginTop: 3 }}>
+                    {visibleErrors.email}
+                  </Text>
+                : null
+              }
+  
+              {/* ── Credentials ───────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Credentials</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.textArea]}
+                placeholder="Academic achievements, leadership roles…"
+                placeholderTextColor={COLORS.textMuted}
+                value={form.credentials}
+                onChangeText={v => setField('credentials', v)}
+                multiline
+              />
+  
+              {/* ── Platform ──────────────────────────────────────────────── */}
+              <Text style={formStyles.fieldLabel}>Platform</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.textArea]}
+                placeholder="Key advocacies and plans for the student body…"
+                placeholderTextColor={COLORS.textMuted}
+                value={form.platform}
+                onChangeText={v => setField('platform', v)}
+                multiline
+              />
+  
+              <View style={formStyles.divider} />
+  
+              <View style={formStyles.btnRow}>
+                <TouchableOpacity style={formStyles.btnCancel} onPress={onClose}>
+                  <Text style={formStyles.btnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[formStyles.btnSave, !isValid && formStyles.btnSaveDisabled]}
+                  onPress={handleSave}
+                  disabled={!isValid}
+                >
+                  <Text style={formStyles.btnSaveText}>
+                    {editId ? 'Save Changes' : 'Add Candidate'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+  
+              <View style={{ height: 24 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    );
+  };
+  
+  // ─── Single candidate card ────────────────────────────────────────────────────
+  
+  const CandidateCard: React.FC<{
+    candidate: Candidate;
+    onView:    () => void;
+    onEdit:    () => void;
+    onDelete:  () => void;
+  }> = ({ candidate, onView, onEdit, onDelete }) => (
     <View style={cardStyles.wrapper}>
       <View style={cardStyles.avatar}>
-        <Text style={cardStyles.avatarText}>{getInitials(candidate.name)}</Text>
+        {candidate.photo_url ? (
+          <Image
+            source={{ uri: candidate.photo_url }}
+            style={{ width: 50, height: 50, borderRadius: 25 }}
+          />
+        ) : (
+          <Text style={cardStyles.avatarText}>{getInitials(candidate.name)}</Text>
+        )}
       </View>
-
+  
       <View style={cardStyles.info}>
         <Text style={cardStyles.name} numberOfLines={1}>{candidate.name}</Text>
-        <Text style={cardStyles.positionBadge} numberOfLines={1}>{positionName}</Text>
+        <Text style={cardStyles.positionBadge} numberOfLines={1}>{candidate.position_name}</Text>
         {candidate.partylist
           ? <Text style={cardStyles.partylist} numberOfLines={1}>{candidate.partylist}</Text>
           : null
         }
       </View>
-
+  
       <View style={cardStyles.actions}>
         <TouchableOpacity
           style={[cardStyles.actionBtn, cardStyles.viewBtn]}
@@ -389,241 +556,331 @@ const CandidateCard: React.FC<{
       </View>
     </View>
   );
-};
-
-// ─── Main screen ──────────────────────────────────────────────────────────────
-function AdminCandidatesScreen() {
-  const { data: rawCandidates = [], isLoading: loadingCand } = useCandidates();
-  const { data: rawPositions  = [], isLoading: loadingPos  } = usePositions();
-  const deleteMutation = useDeleteCandidate();
-  const upsertMutation = useUpsertCandidate();
-
-  // Fall back to dummy data until backend is connected
-  const isUsingDummy = rawCandidates.length === 0;
-  const candidates   = (isUsingDummy ? DUMMY_CANDIDATES : rawCandidates) as CandidateRow[];
-  const positions    = (rawPositions.length === 0 ? DUMMY_POSITIONS : rawPositions) as PositionRow[];
-
-  const [activeFilter,    setActiveFilter]    = useState<string>('all');
-  const [formVisible,     setFormVisible]     = useState(false);
-  const [editId,          setEditId]          = useState<string | null>(null);
-  const [formInitial,     setFormInitial]     = useState<FormState>(EMPTY_FORM);
-  const [viewedCandidate, setViewedCandidate] = useState<CandidateRow | null>(null);
-
-  // ─── Filtered + grouped ────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    if (activeFilter === 'all') return candidates;
-    return candidates.filter(c => c.position_id === activeFilter);
-  }, [candidates, activeFilter]);
-
-  const grouped = useMemo(() => {
-    if (activeFilter !== 'all') return null;
-    const map = new Map<string, { position: PositionRow; items: CandidateRow[] }>();
-    positions.forEach(p => map.set(p.id, { position: p, items: [] }));
-    candidates.forEach(c => {
-      const entry = map.get(c.position_id);
-      if (entry) entry.items.push(c);
-    });
-    return Array.from(map.values());
-  }, [positions, candidates, activeFilter]);
-
-  // ─── Handlers ─────────────────────────────────────────────────────────────
-  const openAdd = useCallback(() => {
-    setEditId(null);
-    setFormInitial({ ...EMPTY_FORM, position_id: positions[0]?.id ?? '' });
-    setFormVisible(true);
-  }, [positions]);
-
-  const openEdit = useCallback((c: CandidateRow) => {
-    setEditId(c.id);
-    setFormInitial({
-      name:        c.name,
-      partylist:   c.partylist   ?? '',
-      position_id: c.position_id,
-      email:       c.email       ?? '',
-      credentials: c.credentials ?? '',
-      platform:    c.platform    ?? '',
-    });
-    setFormVisible(true);
-  }, []);
-
-  const confirmDelete = useCallback((c: CandidateRow) => {
-    if (isUsingDummy) {
-      Alert.alert('Demo Mode', 'Connect the backend to enable deleting candidates.');
-      return;
-    }
-    Alert.alert(
-      'Delete Candidate',
-      `Remove "${c.name}" from the ballot? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteMutation.mutateAsync(c.id);
-            } catch (err: any) {
-              Alert.alert('Error', err?.message ?? 'Failed to delete candidate.');
-            }
+  
+  // ─── Position section header with enable/disable toggle ───────────────────────
+  
+  const PositionHeader: React.FC<{
+    positionName: string;
+    positionId:   string;
+    isDisabled:   boolean;
+    onToggle:     () => void;
+  }> = ({ positionName, positionId: _positionId, isDisabled, onToggle }) => (
+    <View style={{
+      flexDirection:   'row',
+      alignItems:      'center',
+      justifyContent:  'space-between',
+      marginTop:       SPACE.sm,
+      marginBottom:    SPACE.xs,
+    }}>
+      <Text style={{
+        fontSize:      FONT.xs,
+        fontWeight:    '700',
+        letterSpacing: 1.2,
+        color:         isDisabled ? COLORS.textMuted : COLORS.textSub,
+        textTransform: 'uppercase',
+        flex:          1,
+        marginRight:   SPACE.sm,
+      }}
+        numberOfLines={1}
+      >
+        {positionName}
+      </Text>
+      <TouchableOpacity
+        onPress={onToggle}
+        style={{
+          paddingHorizontal: SPACE.sm,
+          paddingVertical:   SPACE.xs,
+          borderRadius:      RADIUS.pill,
+          borderWidth:       1,
+          borderColor:       isDisabled ? COLORS.redBorder : COLORS.borderBright,
+          backgroundColor:   isDisabled ? COLORS.redFaint  : COLORS.bgElevated,
+        }}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        <Text style={{
+          fontSize:   FONT.xs,
+          fontWeight: '700',
+          color:      isDisabled ? COLORS.red : COLORS.textSub,
+        }}>
+          {isDisabled ? '⛔ Disabled' : '✓ Active'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+  
+  // ─── Main screen ──────────────────────────────────────────────────────────────
+  
+  function AdminCandidatesScreen() {
+    const {
+      candidates,
+      disabledPositions,
+      addCandidate,
+      updateCandidate,
+      deleteCandidate,
+      togglePositionDisabled,
+    } = useCandidateStore();
+  
+    const [activeFilter,    setActiveFilter]    = useState<string>('all');
+    const [formVisible,     setFormVisible]     = useState(false);
+    const [editId,          setEditId]          = useState<string | null>(null);
+    const [formInitial,     setFormInitial]     = useState<FormState>(EMPTY_FORM);
+    const [viewedCandidate, setViewedCandidate] = useState<Candidate | null>(null);
+  
+    // ─── Grouped: per visible department → per position ───────────────────────
+    const grouped = useMemo(() => {
+      const visibleDepts: readonly string[] =
+        activeFilter === 'all' ? DEPARTMENTS : [activeFilter];
+  
+      return visibleDepts.map(dept => {
+        const positions: readonly string[] =
+          dept === 'Executive Council' ? EXECUTIVE_POSITIONS : DEPARTMENT_POSITIONS;
+  
+        const positionGroups = positions.map(posName => {
+          const posId = resolvePositionId(dept, posName);
+          const items = candidates.filter(
+            c => c.department === dept && c.position_name === posName,
+          );
+          return { positionName: posName, positionId: posId, items };
+        });
+  
+        return { department: dept, positionGroups };
+      });
+    }, [candidates, activeFilter]);
+  
+    // ─── Handlers ─────────────────────────────────────────────────────────────
+  
+    const openAdd = useCallback(() => {
+      setEditId(null);
+      setFormInitial({ ...EMPTY_FORM });
+      setFormVisible(true);
+    }, []);
+  
+    const openEdit = useCallback((c: Candidate) => {
+      setEditId(c.id);
+      setFormInitial({
+        name:        c.name,
+        partylist:   c.partylist   ?? '',
+        department:  c.department,
+        position:    c.position_name,
+        email:       c.email       ?? '',
+        credentials: c.credentials ?? '',
+        platform:    c.platform    ?? '',
+        photo_uri:   c.photo_url,
+      });
+      setFormVisible(true);
+    }, []);
+  
+    const confirmDelete = useCallback((c: Candidate) => {
+      Alert.alert(
+        'Delete Candidate',
+        `Remove "${c.name}" from the ballot? This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete', style: 'destructive',
+            onPress: () => deleteCandidate(c.id),
           },
-        },
-      ],
-    );
-  }, [deleteMutation, isUsingDummy]);
-
-  const handleSave = useCallback(async (id: string | null, data: FormState) => {
-    if (isUsingDummy) {
+        ],
+      );
+    }, [deleteCandidate]);
+  
+    const handleSave = useCallback((id: string | null, data: FormState) => {
+      if (!data.department || !data.position) return;
+  
+      const dept        = data.department as Department;
+      const pos         = data.position   as Position;
+      const position_id = resolvePositionId(dept, pos);
+  
+      const payload = {
+        name:          data.name.trim(),
+        partylist:     data.partylist.trim(),
+        department:    dept,
+        position_id,
+        position_name: pos,
+        email:         data.email.trim()       || null,
+        credentials:   data.credentials.trim() || null,
+        platform:      data.platform.trim()    || null,
+        photo_url:     data.photo_uri,
+      };
+  
+      if (id) {
+        updateCandidate(id, payload);
+      } else {
+        addCandidate({ ...payload, id: generateCandidateId() });
+      }
+  
       setFormVisible(false);
-      Alert.alert('Demo Mode', 'Connect the backend to enable saving candidates.');
-      return;
-    }
-    try {
-      await upsertMutation.mutateAsync({ id: id ?? undefined, data });
-      setFormVisible(false);
-    } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Failed to save candidate.');
-    }
-  }, [upsertMutation, isUsingDummy]);
-
-  const renderCards = (list: CandidateRow[]) =>
-    list.map(c => (
-      <CandidateCard
-        key={c.id}
-        candidate={c}
-        onView={() => setViewedCandidate(c)}
-        onEdit={() => openEdit(c)}
-        onDelete={() => confirmDelete(c)}
-      />
-    ));
-
-  // ─── Loading ───────────────────────────────────────────────────────────────
-  if (loadingCand || loadingPos) {
+    }, [addCandidate, updateCandidate]);
+  
+    const renderCards = useCallback((list: Candidate[]) =>
+      list.map(c => (
+        <CandidateCard
+          key={c.id}
+          candidate={c}
+          onView={() => setViewedCandidate(c)}
+          onEdit={() => openEdit(c)}
+          onDelete={() => confirmDelete(c)}
+        />
+      )),
+    [openEdit, confirmDelete]);
+  
+    // ─── Main UI ───────────────────────────────────────────────────────────────
+  
     return (
       <SafeAreaView style={screenStyles.container} edges={['top', 'left', 'right']}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={COLORS.green} size="large" />
+  
+        {/* Header */}
+        <View style={screenStyles.header}>
+          <View>
+            <Text style={screenStyles.headerTitle}>Candidates</Text>
+            <Text style={screenStyles.headerSub}>
+              {candidates.length} registered · {DEPARTMENTS.length} departments
+            </Text>
+          </View>
+          <TouchableOpacity style={screenStyles.addBtn} onPress={openAdd}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', lineHeight: 18 }}>＋</Text>
+            <Text style={screenStyles.addBtnText}>Add</Text>
+          </TouchableOpacity>
         </View>
+  
+        <ScrollView
+          contentContainerStyle={screenStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Department filter tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={filterStyles.scrollRow}
+          >
+            <View style={filterStyles.innerRow}>
+              <TouchableOpacity
+                style={[filterStyles.tab, activeFilter === 'all' && filterStyles.tabActive]}
+                onPress={() => setActiveFilter('all')}
+              >
+                <Text style={[filterStyles.tabText, activeFilter === 'all' && filterStyles.tabTextActive]}>
+                  All
+                </Text>
+              </TouchableOpacity>
+              {DEPARTMENTS.map(d => (
+                <TouchableOpacity
+                  key={d}
+                  style={[filterStyles.tab, activeFilter === d && filterStyles.tabActive]}
+                  onPress={() => setActiveFilter(d)}
+                >
+                  <Text style={[filterStyles.tabText, activeFilter === d && filterStyles.tabTextActive]}>
+                    {d}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+  
+          {/* Grouped candidate list */}
+          {grouped.map(({ department, positionGroups }) => (
+            <View key={department}>
+  
+              {/* Department section header (only in "All" view) */}
+              {activeFilter === 'all' && (
+                <Text style={[screenStyles.sectionLabel, { marginTop: SPACE.lg }]}>
+                  {department}
+                </Text>
+              )}
+  
+              {positionGroups.map(({ positionName, positionId, items }) => {
+                const isDisabled = disabledPositions.has(positionId);
+                return (
+                  <View key={positionId}>
+  
+                    {/* Position sub-header + toggle */}
+                    <PositionHeader
+                      positionName={positionName}
+                      positionId={positionId}
+                      isDisabled={isDisabled}
+                      onToggle={() => togglePositionDisabled(positionId)}
+                    />
+  
+                    {/* Disabled banner */}
+                    {isDisabled && (
+                      <View style={{
+                        backgroundColor: COLORS.redFaint,
+                        borderRadius:    RADIUS.md,
+                        borderWidth:     1,
+                        borderColor:     COLORS.redBorder,
+                        padding:         SPACE.sm,
+                        marginBottom:    SPACE.sm,
+                      }}>
+                        <Text style={{
+                          fontSize:  FONT.xs,
+                          color:     COLORS.red,
+                          textAlign: 'center',
+                        }}>
+                          This position is disabled and excluded from the ballot.
+                        </Text>
+                      </View>
+                    )}
+  
+                    {/* Candidates or empty placeholder */}
+                    {items.length === 0 ? (
+                      <View style={{
+                        backgroundColor: COLORS.bgCard,
+                        borderRadius:    RADIUS.md,
+                        borderWidth:     1,
+                        borderColor:     COLORS.border,
+                        padding:         SPACE.base,
+                        marginBottom:    SPACE.sm,
+                      }}>
+                        <Text style={{
+                          fontSize:  FONT.sm,
+                          color:     COLORS.textMuted,
+                          textAlign: 'center',
+                          fontStyle: 'italic',
+                        }}>
+                          No candidates for this position.
+                        </Text>
+                      </View>
+                    ) : renderCards(items)}
+  
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+  
+        </ScrollView>
+  
+        {/* Add / Edit form sheet */}
+        <CandidateFormSheet
+          visible={formVisible}
+          editId={editId}
+          initial={formInitial}
+          candidates={candidates}
+          onClose={() => setFormVisible(false)}
+          onSave={handleSave}
+        />
+  
+        {/* Profile modal — admin mode */}
+        <CandidateModal
+          candidate={viewedCandidate ? toModalRow(viewedCandidate) : null}
+          visible={!!viewedCandidate}
+          onClose={() => setViewedCandidate(null)}
+          onAdminEdit={row => {
+            const original = candidates.find(x => x.id === row.id);
+            if (!original) return;
+            setViewedCandidate(null);
+            setTimeout(() => openEdit(original), 250);
+          }}
+          onAdminDelete={row => {
+            const original = candidates.find(x => x.id === row.id);
+            if (!original) return;
+            setViewedCandidate(null);
+            setTimeout(() => confirmDelete(original), 250);
+          }}
+        />
       </SafeAreaView>
     );
   }
-
-  // ─── Main UI ───────────────────────────────────────────────────────────────
-  return (
-    <SafeAreaView style={screenStyles.container} edges={['top', 'left', 'right']}>
-
-      {/* Header */}
-      <View style={screenStyles.header}>
-        <View>
-          <Text style={screenStyles.headerTitle}>Candidates</Text>
-          <Text style={screenStyles.headerSub}>
-            {candidates.length} registered · {positions.length} positions
-            {isUsingDummy ? ' · Demo' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity style={screenStyles.addBtn} onPress={openAdd}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', lineHeight: 18 }}>＋</Text>
-          <Text style={screenStyles.addBtnText}>Add</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={screenStyles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Position filter tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={filterStyles.scrollRow}
-        >
-          <View style={filterStyles.innerRow}>
-            <TouchableOpacity
-              style={[filterStyles.tab, activeFilter === 'all' && filterStyles.tabActive]}
-              onPress={() => setActiveFilter('all')}
-            >
-              <Text style={[filterStyles.tabText, activeFilter === 'all' && filterStyles.tabTextActive]}>
-                All
-              </Text>
-            </TouchableOpacity>
-            {positions.map(p => (
-              <TouchableOpacity
-                key={p.id}
-                style={[filterStyles.tab, activeFilter === p.id && filterStyles.tabActive]}
-                onPress={() => setActiveFilter(p.id)}
-              >
-                <Text style={[filterStyles.tabText, activeFilter === p.id && filterStyles.tabTextActive]}>
-                  {p.position_name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* Candidate list */}
-        {filtered.length === 0 ? (
-          <View style={emptyStyles.wrapper}>
-            <Text style={emptyStyles.icon}>🔍</Text>
-            <Text style={emptyStyles.title}>None Found</Text>
-            <Text style={emptyStyles.body}>No candidates for this position yet.</Text>
-          </View>
-        ) : activeFilter !== 'all' ? (
-          renderCards(filtered)
-        ) : (
-          grouped?.map(({ position, items }) => (
-            <View key={position.id}>
-              <Text style={screenStyles.sectionLabel}>{position.position_name}</Text>
-              {items.length === 0 ? (
-                <View style={{
-                  backgroundColor: COLORS.bgCard,
-                  borderRadius:    RADIUS.md,
-                  borderWidth:     1,
-                  borderColor:     COLORS.border,
-                  padding:         SPACE.base,
-                  marginBottom:    SPACE.sm,
-                }}>
-                  <Text style={{
-                    fontSize:  FONT.sm,
-                    color:     COLORS.textMuted,
-                    textAlign: 'center',
-                    fontStyle: 'italic',
-                  }}>
-                    No candidates for this position.
-                  </Text>
-                </View>
-              ) : renderCards(items)}
-            </View>
-          ))
-        )}
-      </ScrollView>
-
-      {/* Add / Edit form sheet */}
-      <CandidateFormSheet
-        visible={formVisible}
-        editId={editId}
-        initial={formInitial}
-        positions={positions}
-        onClose={() => setFormVisible(false)}
-        onSave={handleSave}
-        isSaving={upsertMutation.isPending}
-      />
-
-      {/* Profile modal — admin mode */}
-      <CandidateModal
-        candidate={viewedCandidate}
-        visible={!!viewedCandidate}
-        onClose={() => setViewedCandidate(null)}
-        onAdminEdit={c => {
-          setViewedCandidate(null);
-          setTimeout(() => openEdit(c), 250);
-        }}
-        onAdminDelete={c => {
-          setViewedCandidate(null);
-          setTimeout(() => confirmDelete(c), 250);
-        }}
-      />
-    </SafeAreaView>
-  );
-}
-
-// ─── BOTH exports so navigator works regardless of named vs default import ────
-export { AdminCandidatesScreen };
-export default AdminCandidatesScreen;
+  
+  // ─── BOTH exports so navigator works regardless of named vs default import ────
+  export { AdminCandidatesScreen };
+  export default AdminCandidatesScreen;
