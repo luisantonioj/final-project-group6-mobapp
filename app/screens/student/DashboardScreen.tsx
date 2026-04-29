@@ -35,6 +35,8 @@ import {
   shared,
 } from './DashboardScreen.styles';
 import { usePosts } from '../../hooks/usePosts';
+import { useComments, useCreateComment, useDeleteComment, Comment as CommentType } from '../../hooks/useComments';
+import { useLikes, useToggleLike } from '../../hooks/useLikes';
 import { usePollResponses, useSubmitPollResponse } from '../../hooks/usePollResponses';
 import { useLiveResults, LivePosition } from '../../hooks/useLiveResults';
 import { useSettings, VotingStatus } from '../../hooks/useSettings';
@@ -43,13 +45,6 @@ import { supabase } from '../../utils/supabase';
 // =============================================================================
 // TYPES
 // =============================================================================
-
-interface Comment {
-  id: string;
-  user: string;
-  initials: string;
-  text: string;
-}
 
 interface RawPost {
   id: string;
@@ -573,25 +568,151 @@ const pStyles = {
 // POST CARD
 // =============================================================================
 
+// ─── Single comment row (supports one level of replies) ───────────────────────
+
+const CommentRow: React.FC<{
+  comment: CommentType;
+  userId: string | null;
+  postId: string;
+  depth?: number;
+}> = ({ comment, userId, postId, depth = 0 }) => {
+  const [replyVisible, setReplyVisible] = useState(false);
+  const [replyDraft, setReplyDraft]     = useState('');
+  const { mutateAsync: createComment, isPending: isSending } = useCreateComment(postId);
+  const { mutateAsync: deleteComment } = useDeleteComment(postId);
+  const isOwn = userId === comment.student_id;
+
+  const handleReply = async () => {
+    const trimmed = replyDraft.trim();
+    if (!trimmed || !userId) return;
+    try {
+      await createComment({ content: trimmed, studentId: userId, parentId: comment.id });
+      setReplyDraft('');
+      setReplyVisible(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not post reply.');
+    }
+  };
+
+  const handleDelete = () => {
+    Alert.alert('Delete Comment', 'Remove this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteComment(comment.id) },
+    ]);
+  };
+
+  return (
+    <View style={{ marginLeft: depth > 0 ? 28 : 0, marginBottom: 10 }}>
+      <View style={feedStyles.comment}>
+        <View style={feedStyles.commentAvatar}>
+          <Text style={feedStyles.commentAvatarText}>{comment.authorInitials}</Text>
+        </View>
+        <View style={[feedStyles.commentBubble, { flex: 1 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={feedStyles.commentUser}>{comment.authorName}</Text>
+            <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{timeAgo(comment.created_at)}</Text>
+          </View>
+          <Text style={feedStyles.commentText}>{comment.content}</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+            {depth === 0 && (
+              <TouchableOpacity onPress={() => setReplyVisible(v => !v)}>
+                <Text style={{ fontSize: 11, color: COLORS.green, fontWeight: '600' }}>
+                  {replyVisible ? 'Cancel' : 'Reply'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {isOwn && (
+              <TouchableOpacity onPress={handleDelete}>
+                <Text style={{ fontSize: 11, color: COLORS.textMuted }}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* Reply input */}
+      {replyVisible && (
+        <View style={[feedStyles.commentInput, { marginLeft: 28, marginTop: 6 }]}>
+          <View style={feedStyles.commentAvatar}>
+            <Text style={feedStyles.commentAvatarText}>AN</Text>
+          </View>
+          <View style={feedStyles.commentInputBox}>
+            <TextInput
+              style={feedStyles.commentInputText}
+              placeholder="Write a reply…"
+              placeholderTextColor="#AAAAAA"
+              value={replyDraft}
+              onChangeText={setReplyDraft}
+              multiline
+              autoFocus
+            />
+          </View>
+          <TouchableOpacity style={feedStyles.commentSendBtn} onPress={handleReply} disabled={isSending}>
+            {isSending
+              ? <ActivityIndicator size={12} color={COLORS.green} />
+              : <Text style={{ fontSize: 14 }}>↑</Text>
+            }
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Nested replies (depth 1 only) */}
+      {comment.replies.map((reply, idx) => (
+        <View key={reply.id} style={{ marginTop: idx === 0 ? 8 : 6 }}>
+          <CommentRow comment={reply} userId={userId} postId={postId} depth={1} />
+        </View>
+      ))}
+    </View>
+  );
+};
+
+// ─── Post card ────────────────────────────────────────────────────────────────
+
 const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
-  const [liked, setLiked]                     = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
-  const [comments, setComments]               = useState<Comment[]>([]);
   const [draftComment, setDraftComment]       = useState('');
 
   const authorLabel    = 'DLSL COMELEC';
   const authorInitials = toInitials(authorLabel);
   const roleLabel      = 'Official';
 
-  const handleSubmitComment = () => {
+  // ── Likes ──────────────────────────────────────────────────────────────────
+  const { data: likesData }              = useLikes(post.id, userId);
+  const { mutateAsync: toggleLike, isPending: isTogglingLike } = useToggleLike(post.id);
+
+  const likeCount = likesData?.count   ?? 0;
+  const hasLiked  = likesData?.hasLiked ?? false;
+  const myLikeId  = likesData?.myLikeId ?? null;
+
+  const handleLike = async () => {
+    if (!userId) { Alert.alert('Not signed in', 'You must be signed in to like posts.'); return; }
+    try {
+      await toggleLike({ studentId: userId, hasLiked, myLikeId });
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not update like.');
+    }
+  };
+
+  // ── Comments ───────────────────────────────────────────────────────────────
+  const { data: comments = [], isLoading: commentsLoading } = useComments(post.id);
+  const { mutateAsync: createComment, isPending: isSendingComment } = useCreateComment(post.id);
+
+  const totalCommentCount = comments.reduce((sum, c) => sum + 1 + c.replies.length, 0);
+
+  const handleSubmitComment = async () => {
     const trimmed = draftComment.trim();
-    if (!trimmed) return;
-    setComments(prev => [...prev, { id: Date.now().toString(), user: 'You', initials: 'YO', text: trimmed }]);
-    setDraftComment('');
+    if (!trimmed || !userId) return;
+    try {
+      await createComment({ content: trimmed, studentId: userId });
+      setDraftComment('');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not post comment.');
+    }
   };
 
   return (
     <View style={feedStyles.postCard}>
+      {/* ── Author header ── */}
       <View style={feedStyles.postHeader}>
         <View style={feedStyles.avatar}>
           <Text style={feedStyles.avatarText}>{authorInitials}</Text>
@@ -615,33 +736,51 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
         : null}
       {post.type === 'poll' ? <PollVoter post={post} userId={userId} /> : null}
 
+      {/* ── Like & comment buttons ── */}
       <View style={feedStyles.postActions}>
-        <TouchableOpacity style={feedStyles.postAction} onPress={() => setLiked(v => !v)}>
-          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? '#22c55e' : '#ffffff'} />
-          <Text style={feedStyles.postActionText}>{liked ? 1 : 0}</Text>
+        <TouchableOpacity
+          style={feedStyles.postAction}
+          onPress={handleLike}
+          disabled={isTogglingLike}
+        >
+          <Ionicons
+            name={hasLiked ? 'heart' : 'heart-outline'}
+            size={18}
+            color={hasLiked ? '#22c55e' : '#ffffff'}
+          />
+          <Text style={feedStyles.postActionText}>{likeCount}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={feedStyles.postAction} onPress={() => setCommentsVisible(v => !v)}>
+
+        <TouchableOpacity
+          style={feedStyles.postAction}
+          onPress={() => setCommentsVisible(v => !v)}
+        >
           <Ionicons name="chatbubble-outline" size={18} color="#ffffff" />
-          <Text style={feedStyles.postActionText}>{comments.length} Comments</Text>
+          <Text style={feedStyles.postActionText}>
+            {totalCommentCount} {totalCommentCount === 1 ? 'Comment' : 'Comments'}
+          </Text>
         </TouchableOpacity>
       </View>
 
+      {/* ── Comment thread ── */}
       {commentsVisible && (
         <View style={feedStyles.commentSection}>
-          {comments.map(c => (
-            <View key={c.id} style={feedStyles.comment}>
-              <View style={feedStyles.commentAvatar}>
-                <Text style={feedStyles.commentAvatarText}>{c.initials}</Text>
-              </View>
-              <View style={feedStyles.commentBubble}>
-                <Text style={feedStyles.commentUser}>{c.user}</Text>
-                <Text style={feedStyles.commentText}>{c.text}</Text>
-              </View>
-            </View>
-          ))}
+          {commentsLoading ? (
+            <ActivityIndicator size="small" color={COLORS.green} style={{ marginVertical: 12 }} />
+          ) : comments.length === 0 ? (
+            <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 10 }}>
+              No comments yet. Be the first!
+            </Text>
+          ) : (
+            comments.map(c => (
+              <CommentRow key={c.id} comment={c} userId={userId} postId={post.id} />
+            ))
+          )}
+
+          {/* New top-level comment input */}
           <View style={feedStyles.commentInput}>
             <View style={feedStyles.commentAvatar}>
-              <Text style={feedStyles.commentAvatarText}>YO</Text>
+              <Text style={feedStyles.commentAvatarText}>AN</Text>
             </View>
             <View style={feedStyles.commentInputBox}>
               <TextInput
@@ -653,8 +792,15 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
                 multiline
               />
             </View>
-            <TouchableOpacity style={feedStyles.commentSendBtn} onPress={handleSubmitComment}>
-              <Text style={{ fontSize: 14 }}>↑</Text>
+            <TouchableOpacity
+              style={feedStyles.commentSendBtn}
+              onPress={handleSubmitComment}
+              disabled={isSendingComment}
+            >
+              {isSendingComment
+                ? <ActivityIndicator size={12} color={COLORS.green} />
+                : <Text style={{ fontSize: 14 }}>↑</Text>
+              }
             </TouchableOpacity>
           </View>
         </View>

@@ -1,134 +1,92 @@
-/**
- * useSettings.ts
- * ─────────────────────────────────────────────────────────────────────────────
- * Fetches the single SystemSettings row and subscribes to real-time changes.
- * Used by:
- *   - VotingCountdown  → voting_start_time, voting_end_time
- *   - LiveVotingBoard  → show_live_results
- *
- * Table: SystemSettings
- *   id, voting_start_time, voting_end_time,
- *   is_miting_active, show_live_results, updated_at
- *
- * SUPABASE RLS REQUIRED:
- * ─────────────────────────────────────────────────────────────────────────────
- *   CREATE POLICY "read settings" ON "SystemSettings"
- *     FOR SELECT USING (auth.role() = 'authenticated');
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
-import { useEffect, useState, useCallback } from 'react';
+// hooks/useSettings.ts
+import { useEffect, useMemo, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabase';
+import type { Database } from '../utils/database.types';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-export interface SystemSettings {
-  id: string;
-  voting_start_time: string | null;
-  voting_end_time: string | null;
-  is_miting_active: boolean;
-  show_live_results: boolean;
-  updated_at: string | null;
-}
+type SystemSettingsRow =
+  Database['public']['Tables']['SystemSettings']['Row'];
+
+type SystemSettingsUpdate =
+  Database['public']['Tables']['SystemSettings']['Update'];
 
 export type VotingStatus =
-  | 'not_started' // before voting_start_time
-  | 'active'      // between start and end
-  | 'ended'       // after voting_end_time
-  | 'unconfigured'; // no times set yet
+  | 'not_started'
+  | 'active'
+  | 'ended'
+  | 'unconfigured';
 
-interface UseSettingsReturn {
-  settings: SystemSettings | null;
-  votingStatus: VotingStatus;
-  isLoading: boolean;
-  isError: boolean;
-  error: string | null;
+// =============================================================================
+// SINGLETON SUBSCRIPTION
+// One shared channel regardless of how many components call useSettings().
+// Reference-counted: channel opens on first subscriber, closes on last.
+// =============================================================================
+
+let subscriberCount = 0;
+let channel: ReturnType<typeof supabase.channel> | null = null;
+const invalidateCallbacks = new Set<() => void>();
+
+function registerSettingsSubscriber(onInvalidate: () => void) {
+  invalidateCallbacks.add(onInvalidate);
+  subscriberCount += 1;
+
+  if (subscriberCount === 1) {
+    // First subscriber — open the channel
+    channel = supabase
+      .channel('system-settings-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'SystemSettings' },
+        () => {
+          invalidateCallbacks.forEach(cb => cb());
+        }
+      )
+      .subscribe();
+  }
+
+  return () => {
+    invalidateCallbacks.delete(onInvalidate);
+    subscriberCount -= 1;
+
+    if (subscriberCount === 0 && channel) {
+      // Last subscriber — close the channel
+      supabase.removeChannel(channel);
+      channel = null;
+    }
+  };
 }
 
 // =============================================================================
 // HELPERS
 // =============================================================================
 
-function getVotingStatus(settings: SystemSettings | null): VotingStatus {
-  if (!settings?.voting_start_time || !settings?.voting_end_time) return 'unconfigured';
+function getVotingStatus(settings: SystemSettingsRow | null): VotingStatus {
+  if (!settings?.voting_start_time || !settings?.voting_end_time)
+    return 'unconfigured';
+
   const now   = Date.now();
   const start = new Date(settings.voting_start_time).getTime();
   const end   = new Date(settings.voting_end_time).getTime();
+
   if (now < start) return 'not_started';
   if (now > end)   return 'ended';
   return 'active';
 }
 
 // =============================================================================
-// HOOK
+// HOOK: GET SETTINGS (WITH REALTIME)
 // =============================================================================
 
-export function useSettings(): UseSettingsReturn {
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
-
-  const fetchSettings = useCallback(async () => {
-    try {
-      setIsError(false);
-      setError(null);
-
-      const { data, error: err } = await supabase
-        .from('SystemSettings')
-        .select('*')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (err) throw err;
-      setSettings(data as SystemSettings);
-    } catch (e: any) {
-      setIsError(true);
-      setError(e?.message ?? 'Failed to load settings.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSettings();
-
-    // Real-time: re-fetch whenever the admin updates SystemSettings
-    const channel = supabase
-      .channel(`system-settings-${Date.now()}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'SystemSettings' },
-        () => fetchSettings(),
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchSettings]);
-
-  return {
-    settings,
-    votingStatus: getVotingStatus(settings),
-    isLoading,
-    isError,
-    error,
-  };
-// hooks/useSettings.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../utils/supabase';
-import type { Database } from '../utils/database.types';
-
-type SystemSettingsRow = Database['public']['Tables']['SystemSettings']['Row'];
-type SystemSettingsUpdate = Database['public']['Tables']['SystemSettings']['Update'];
-
-// ─── GET system settings (singleton row) ─────────────────────────────────────
-// Used by VoteScreen to check voting_start_time / voting_end_time,
-// and by MitingScreen to check is_miting_active.
 export function useSettings() {
-  return useQuery<SystemSettingsRow | null>({
+  const queryClient = useQueryClient();
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
+
+  const query = useQuery<SystemSettingsRow | null>({
     queryKey: ['settings'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -140,18 +98,40 @@ export function useSettings() {
       if (error) throw error;
       return data ?? null;
     },
-    // Re-fetch every 60 seconds so voting window changes propagate
     refetchInterval: 60_000,
   });
+
+  // Register with the singleton — safe to call from multiple components
+  useEffect(() => {
+    const unregister = registerSettingsSubscriber(() => {
+      queryClientRef.current.invalidateQueries({ queryKey: ['settings'] });
+    });
+    return unregister;
+  }, []); // empty — singleton manages the actual channel lifecycle
+
+  const votingStatus = useMemo(
+    () => getVotingStatus(query.data ?? null),
+    [query.data]
+  );
+
+  return {
+    settings:  query.data ?? null,
+    votingStatus,
+    isLoading: query.isLoading,
+    isError:   query.isError,
+    error:     query.error as Error | null,
+  };
 }
 
-// ─── UPDATE system settings (admin only) ─────────────────────────────────────
-// Used by AdminSettingsScreen to toggle voting window, live results, miting.
+// =============================================================================
+// HOOK: UPDATE SETTINGS
+// =============================================================================
+
 export function useUpdateSettings() {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (updates: SystemSettingsUpdate) => {
-      // Fetch the existing row id first (singleton pattern)
       const { data: existing, error: fetchError } = await supabase
         .from('SystemSettings')
         .select('id')
@@ -168,6 +148,7 @@ export function useUpdateSettings() {
 
       if (error) throw error;
     },
+
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
     },
