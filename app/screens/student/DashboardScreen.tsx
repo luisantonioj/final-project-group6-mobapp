@@ -273,152 +273,191 @@ const VotingCountdown: React.FC = () => {
 };
 
 // =============================================================================
-// SECTION 2 — LIVE VOTING BOARD
+// SECTION 2 — VOTER TURNOUT DASHBOARD
+// PBB-style turnout board: donut summary + college participation ranking.
+// Uses dummy data — replace DUMMY_TURNOUT with real data when backend ready.
 // Hidden entirely when show_live_results = false.
 // =============================================================================
 
-const LiveVotingBoard: React.FC = () => {
-  const { positions, isLoading, isError, error } = useLiveResults();
-  const [activePositionId, setActivePositionId]  = useState<string | null>(null);
+// TODO: replace with real data from Supabase (e.g. a Colleges + Votes join)
+const DUMMY_TURNOUT = {
+  totalVoters:  5255,
+  totalVoted:   3121,
+  asOf:         'Apr 15, 2026 · 08:02 PM',
+  colleges: [
+    { name: 'CON',       pct: 84.9, voted: 636,  total: 749,  color: '#16A34A' },
+    { name: 'CEAS/CCJE', pct: 63.9, voted: 478,  total: 748,  color: '#1D4ED8' },
+    { name: 'CBEAM',     pct: 59.9, voted: 401,  total: 669,  color: '#B45309' },
+    { name: 'CIHTM',     pct: 48.6, voted: 312,  total: 642,  color: '#7C3AED' },
+    { name: 'CITE',      pct: 41.2, voted: 289,  total: 702,  color: '#ff0000' },
+    { name: 'CCAFS',     pct: 37.8, voted: 204,  total: 540,  color: '#4726dc' },
+    { name: 'CAS',       pct: 29.3, voted: 183,  total: 625,  color: '#D97706' },
+    { name: 'COM',       pct: 22.1, voted: 118,  total: 533,  color: '#6D28D9' },
+  ],
+};
 
-  useEffect(() => {
-    if (positions.length > 0 && activePositionId === null) {
-      setActivePositionId(positions[0].id);
-    }
-  }, [positions]);
-
-  const activePosition: LivePosition | undefined =
-    positions.find(p => p.id === activePositionId) ?? positions[0];
-
-  if (isLoading) {
-    return (
-      <View style={[shared.card, { padding: 24, alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={COLORS.green} />
-        <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13 }}>
-          Loading live results…
-        </Text>
-      </View>
-    );
-  }
-
-  if (isError) {
-    return (
-      <View style={[shared.card, { padding: 24, alignItems: 'center' }]}>
-        <Ionicons name="cloud-offline-outline" size={28} color={COLORS.textMuted} />
-        <Text style={{ color: COLORS.textMuted, marginTop: 10, fontSize: 13, textAlign: 'center' }}>
-          {error ?? 'Could not load live results.'}
-        </Text>
-      </View>
-    );
-  }
-
-  if (positions.length === 0 || !activePosition) {
-    return (
-      <View style={[shared.card, { padding: 24, alignItems: 'center' }]}>
-        <Ionicons name="people-outline" size={28} color={COLORS.textMuted} />
-        <Text style={{ color: COLORS.textMuted, marginTop: 10, fontSize: 13 }}>
-          No positions available yet.
-        </Text>
-      </View>
-    );
-  }
-
-  const topVotes   = activePosition.candidates[0]?.votes ?? 1;
-  const totalVotes = activePosition.totalVotes;
+// ── Donut ring drawn with two arcs (no chart library needed) ─────────────────
+const DonutRing: React.FC<{ pct: number; size: number; stroke: number }> = ({ pct, size, stroke }) => {
+  const r      = (size - stroke) / 2;
+  const cx     = size / 2;
+  const circ   = 2 * Math.PI * r;
+  const filled = (pct / 100) * circ;
 
   return (
-    <View style={[shared.card, { padding: 0, overflow: 'hidden' }]}>
-      <View style={{ padding: 16, paddingBottom: 0 }}>
-        <View style={liveStyles.headerRow}>
-          <Text style={shared.sectionTitle}>Live Results</Text>
-          <View style={liveStyles.livePill}>
-            <View style={liveStyles.liveDot} />
-            <Text style={liveStyles.livePillText}>LIVE</Text>
+    <View style={{ width: size, height: size }}>
+      <Animated.View>
+        {/* SVG-less approach: two concentric Views with border */}
+        <View style={{
+          width: size, height: size, borderRadius: size / 2,
+          borderWidth: stroke, borderColor: 'rgba(255,255,255,0.08)',
+          position: 'absolute',
+        }} />
+        {/* Filled arc approximation using rotation trick */}
+        <View style={{
+          width: size, height: size, borderRadius: size / 2,
+          borderWidth: stroke,
+          borderTopColor:    COLORS.green,
+          borderRightColor:  pct > 25  ? COLORS.green : 'transparent',
+          borderBottomColor: pct > 50  ? COLORS.green : 'transparent',
+          borderLeftColor:   pct > 75  ? COLORS.green : 'transparent',
+          position: 'absolute',
+          transform: [{ rotate: '-90deg' }],
+          opacity: 0.9,
+        }} />
+      </Animated.View>
+    </View>
+  );
+};
+
+const LiveVotingBoard: React.FC = () => {
+  const { totalVoters, totalVoted, asOf, colleges } = DUMMY_TURNOUT;
+  const overallPct = Math.round((totalVoted / totalVoters) * 100 * 10) / 10;
+  const topCollege = colleges[0];
+  const rest       = colleges.slice(1);
+
+  // Pair remaining colleges into rows of 2
+  const rows: typeof rest[] = [];
+  for (let i = 0; i < rest.length; i += 2) {
+    rows.push(rest.slice(i, i + 2));
+  }
+
+  return (
+    <View>
+      {/* ── Header pill ── */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <Text style={[shared.sectionTitle, { flex: 1 }]}>Voter Turnout</Text>
+        <View style={liveStyles.livePill}>
+          <View style={liveStyles.liveDot} />
+          <Text style={liveStyles.livePillText}>LIVE</Text>
+        </View>
+      </View>
+
+      {/* ── Summary card ── */}
+      <View style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 }]}>
+        {/* Donut */}
+        <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center' }}>
+          <DonutRing pct={overallPct} size={80} stroke={10} />
+          <View style={{ position: 'absolute', alignItems: 'center' }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.green }}>{overallPct}%</Text>
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-          <View style={liveStyles.positionScroll}>
-            {positions.map(pos => (
-              <TouchableOpacity
-                key={pos.id}
-                style={[
-                  liveStyles.positionTab,
-                  activePositionId === pos.id && liveStyles.positionTabActive,
-                ]}
-                onPress={() => setActivePositionId(pos.id)}
-              >
-                <Text style={[
-                  liveStyles.positionTabText,
-                  activePositionId === pos.id && liveStyles.positionTabTextActive,
-                ]}>
-                  {pos.position_name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        {/* Stats */}
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+            SG Elections 2025–2026
+          </Text>
+          <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8 }}>
+            As of {asOf}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+            <Text style={{ fontSize: 24, fontWeight: '700', color: COLORS.green }}>{overallPct}%</Text>
+            <Text style={{ fontSize: 13, color: COLORS.textMuted }}>
+              {totalVoted.toLocaleString()} / {totalVoters.toLocaleString()}
+            </Text>
           </View>
-        </ScrollView>
+        </View>
       </View>
 
-      <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-        {activePosition.candidates.length === 0 ? (
-          <Text style={{ color: COLORS.textMuted, fontSize: 13, paddingVertical: 12 }}>
-            No candidates for this position yet.
+      {/* ── #1 College featured card ── */}
+      <View style={[shared.card, {
+        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10,
+        borderColor: COLORS.green, borderWidth: 1.5,
+      }]}>
+        <View style={{
+          width: 44, height: 44, borderRadius: 22,
+          backgroundColor: COLORS.greenGlow,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.green }}>
+            {topCollege.name[0]}
           </Text>
-        ) : (
-          activePosition.candidates.map((candidate, idx) => {
-            const isLeading   = idx === 0 && candidate.votes > 0;
-            const barWidthPct = topVotes > 0 ? Math.round((candidate.votes / topVotes) * 100) : 0;
-            const sharePct    = totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0;
+        </View>
 
-            const avatarColors = ['#16A34A', '#1D4ED8', '#7C3AED', '#B45309', '#0891B2', '#DC2626'];
-            const colorIndex   = candidate.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length;
-            const avatarColor  = avatarColors[colorIndex];
-            const initials     = toInitials(candidate.name);
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: 2 }}>
+            {topCollege.name}
+          </Text>
+          <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 6 }}>
+            {topCollege.pct}% participation · {topCollege.voted.toLocaleString()} / {topCollege.total.toLocaleString()}
+          </Text>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, height: 5, overflow: 'hidden' }}>
+            <View style={{ width: `${topCollege.pct}%`, height: '100%', backgroundColor: COLORS.green, borderRadius: 4 }} />
+          </View>
+        </View>
 
+        <View style={{
+          backgroundColor: COLORS.greenGlow, borderRadius: 10,
+          paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center',
+        }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.green }}>#1</Text>
+          <Text style={{ fontSize: 9, color: COLORS.green, textAlign: 'center', marginTop: 1 }}>Most{''}Engaged</Text>
+        </View>
+      </View>
+
+      {/* ── Remaining colleges in 2-col grid ── */}
+      {rows.map((pair, ri) => (
+        <View key={ri} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+          {pair.map((col, ci) => {
+            const rank = ri * 2 + ci + 2;
             return (
-              <View key={candidate.id} style={liveStyles.candidateRow}>
-                <View style={liveStyles.rank}>
-                  <Text style={[liveStyles.rankText, isLeading && liveStyles.rankFirst]}>
-                    {isLeading ? '1st' : `#${idx + 1}`}
-                  </Text>
-                </View>
-                <View style={[
-                  liveStyles.candidateAvatar,
-                  { backgroundColor: avatarColor + '22' },
-                  isLeading && liveStyles.candidateAvatarLead,
-                ]}>
-                  <Text style={liveStyles.candidateAvatarText}>{initials}</Text>
-                </View>
-                <View style={liveStyles.candidateInfo}>
-                  <Text style={liveStyles.candidateName} numberOfLines={1}>{candidate.name}</Text>
-                  {candidate.partylist ? (
-                    <Text style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>
-                      {candidate.partylist}
+              <View key={col.name} style={[shared.card, { flex: 1, gap: 6 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{
+                    width: 32, height: 32, borderRadius: 16,
+                    backgroundColor: col.color + '22',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: col.color }}>
+                      {col.name[0]}
                     </Text>
-                  ) : null}
-                  <View style={liveStyles.candidateBarTrack}>
-                    <View style={[
-                      liveStyles.candidateBarFill,
-                      { width: `${barWidthPct}%` },
-                      isLeading && liveStyles.candidateBarFillLead,
-                    ]} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }} numberOfLines={1}>
+                      {col.name}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: COLORS.textMuted }}>
+                      {col.pct}%
+                    </Text>
+                  </View>
+                  <View style={{
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
+                  }}>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textMuted }}>#{rank}</Text>
                   </View>
                 </View>
-                <View style={liveStyles.candidateVotes}>
-                  <Text style={liveStyles.candidateVoteCount}>{candidate.votes.toLocaleString()}</Text>
-                  <Text style={[liveStyles.candidateVotePct, isLeading && liveStyles.candidateVotePctLead]}>
-                    {sharePct}%
-                  </Text>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, height: 4, overflow: 'hidden' }}>
+                  <View style={{ width: `${col.pct}%`, height: '100%', backgroundColor: col.color, borderRadius: 3 }} />
                 </View>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>
+                  {col.voted.toLocaleString()} / {col.total.toLocaleString()}
+                </Text>
               </View>
             );
-          })
-        )}
-        <Text style={liveStyles.totalVotes}>
-          {totalVotes.toLocaleString()} valid vote{totalVotes !== 1 ? 's' : ''} cast
-        </Text>
-      </View>
+          })}
+        </View>
+      ))}
     </View>
   );
 };
