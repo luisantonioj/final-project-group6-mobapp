@@ -964,11 +964,11 @@ export function AdminDashboardScreen() {
           >
             {isRefreshing
               ? <ActivityIndicator size={18} color={C.green} />
-              : <Ionicons name="refresh-outline" size={20} color={C.green} />
+              : <Ionicons name="refresh-outline" size={20} color={C.text} />
             }
           </TouchableOpacity>
           <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
-            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.green} />
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.text} />
           </TouchableOpacity>
         </View>
       </View>

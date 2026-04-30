@@ -208,6 +208,7 @@ export function makeStyles(C: ThemeColors) {
     tab: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: 4,
       paddingVertical: 8,
       paddingHorizontal: 12,
       borderRadius: 20,

@@ -344,7 +344,7 @@ const LiveVotingBoard: React.FC = () => {
 
       {/* #1 College featured card */}
       <View style={[S.shared.card, {
-        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10,
+        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12,
         borderColor: C.green, borderWidth: 1.5,
       }]}>
         <View style={{
@@ -380,7 +380,7 @@ const LiveVotingBoard: React.FC = () => {
 
       {/* Remaining colleges in 2-col grid */}
       {rows.map((pair, ri) => (
-        <View key={ri} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+        <View key={ri} style={{ flexDirection: 'row', gap: 10, }}>
           {pair.map((col, ci) => {
             const rank = ri * 2 + ci + 2;
             return (
@@ -960,11 +960,11 @@ export default function DashboardScreen() {
             >
               {isRefreshing
                 ? <ActivityIndicator size={18} color={C.green} />
-                : <Ionicons name="refresh-outline" size={20} color={C.green} />
+                : <Ionicons name="refresh-outline" size={20} color={C.text} />
               }
             </TouchableOpacity>
             <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
-              <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.green} />
+              <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.text} />
             </TouchableOpacity>
           </View>
         </View>
