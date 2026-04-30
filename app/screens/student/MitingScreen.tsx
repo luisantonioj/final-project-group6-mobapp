@@ -138,16 +138,7 @@ export function MitingScreen() {
   const { userProfile } = useAuthStore();
   const userId = userProfile?.id ?? '';
 
-  // Original Code
-  // const { data: questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
-
-  // Temporary Code
-  const { data: _questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
-  const questions: Question[] = [
-    { id: '1', question_text: 'What is your plan for student welfare?', upvote_count: 14, student_id: 'a', is_approved: true, created_at: new Date().toISOString() },
-    { id: '2', question_text: 'How will you improve the cafeteria situation?', upvote_count: 9, student_id: 'b', is_approved: true, created_at: new Date().toISOString() },
-    { id: '3', question_text: 'What specific steps will you take for campus safety?', upvote_count: 3, student_id: 'c', is_approved: true, created_at: new Date().toISOString() },
-  ];
+  const { data: questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
 
   const { mutateAsync: upvote }       = useUpvoteQuestion();
   const { mutateAsync: removeUpvote } = useRemoveUpvote();
@@ -155,7 +146,7 @@ export function MitingScreen() {
   const [draft,          setDraft]         = useState('');
   const [submitting,     setSubmitting]    = useState(false);
   const [upvotedIds,     setUpvotedIds]    = useState<Set<string>>(new Set());
-  const [isMitingActive, setMitingActive]  = useState(true); // Change to false to preview inactive state
+  const [isMitingActive, setMitingActive]  = useState(false);
   const [showToast,      setShowToast]     = useState(false);
 
   const inputRef  = useRef<TextInput>(null);
@@ -173,9 +164,9 @@ export function MitingScreen() {
 
   // ─── Check if Miting is active + listen for admin to activate it ─────────
   useEffect(() => {
-    // Initial check — comment out to keep isMitingActive as hardcoded above
-    // supabase.from('SystemSettings').select('is_miting_active').single()
-    //   .then(({ data }: { data: any }) => setMitingActive(!!(data as any)?.is_miting_active));
+    // Initial check — read current value from DB on mount
+    supabase.from('SystemSettings').select('is_miting_active').limit(1).maybeSingle()
+      .then(({ data }: { data: any }) => setMitingActive(!!(data as any)?.is_miting_active));
 
     // Realtime: fire notification + update state when admin activates Miting
     const ch = supabase
