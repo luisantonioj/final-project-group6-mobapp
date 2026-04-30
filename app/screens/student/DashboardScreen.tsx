@@ -963,9 +963,8 @@ export default function DashboardScreen() {
                 : <Ionicons name="refresh-outline" size={20} color={C.green} />
               }
             </TouchableOpacity>
-            <Ionicons name="person-circle-outline" size={22} color={C.green} />
-            <TouchableOpacity onPress={toggleTheme}>
-              <Text style={S.screen.profileBtn}>{isDark ? 'Light' : 'Dark'}</Text>
+            <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
+              <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.green} />
             </TouchableOpacity>
           </View>
         </View>

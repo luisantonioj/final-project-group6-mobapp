@@ -681,10 +681,17 @@ export function AdminDashboardScreen() {
   // ── Theme ─────────────────────────────────────────────────────────────────
   const C      = useThemeColors();
   const s      = useMemo(() => makeStyles(C), [C]);
-  const isDark = useThemeStore(st => st.isDark);
+  const isDark      = useThemeStore(st => st.isDark);
+  const toggleTheme = useThemeStore(st => st.toggleTheme);
 
   // ── Data hooks ────────────────────────────────────────────────────────────
-  const { data: rawPosts, isLoading, isError, error } = usePosts();
+  const { data: rawPosts, isLoading, isError, error, refetch } = usePosts();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
   const { mutateAsync: createPost } = useCreatePost();
   const { mutateAsync: updatePost } = useUpdatePost();
   const { mutateAsync: deletePost } = useDeletePost();
@@ -949,9 +956,20 @@ export function AdminDashboardScreen() {
           <Text style={s.appLogo}>AnimoQuorum</Text>
           <Text style={s.appSub}>Admin · DLSL COMELEC</Text>
         </View>
-        <View style={s.adminPill}>
-          <Ionicons name="shield-checkmark-outline" size={12} color={C.green} />
-          <Text style={s.adminPillText}>Admin</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.pill, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            disabled={isRefreshing}
+            style={{ padding: 4 }}
+          >
+            {isRefreshing
+              ? <ActivityIndicator size={18} color={C.green} />
+              : <Ionicons name="refresh-outline" size={20} color={C.green} />
+            }
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.green} />
+          </TouchableOpacity>
         </View>
       </View>
 
