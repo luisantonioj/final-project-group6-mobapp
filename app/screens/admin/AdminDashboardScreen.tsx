@@ -25,72 +25,45 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, createContext, useContext } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ScrollView,
-  StatusBar,
-  Platform,
-  KeyboardAvoidingView,
-  Alert,
-  ActivityIndicator,
+  View, Text, FlatList, TouchableOpacity, TextInput, Modal,
+  ScrollView, StatusBar, Platform, KeyboardAvoidingView, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { usePosts, useCreatePost, useUpdatePost, useDeletePost } from '../../hooks/usePosts';
 import { useSettings, useUpdateSettings } from '../../hooks/useSettings';
 import { supabase } from '../../utils/supabase';
-import { C, s } from './AdminDashboardScreen.styles';
-import { T } from '../../theme';
+import { makeStyles, type AdminDashboardStyles } from './AdminDashboardScreen.styles';
+import { useThemeColors } from '../../theme';
+import { useThemeStore } from '../../stores/themeStore';
+import type { ThemeColors } from '../../theme';
+
+// ─── Context ──────────────────────────────────────────────────────────────────
+
+type AdminDashCtx = { C: ThemeColors; s: AdminDashboardStyles };
+const AdminDashCtx = createContext<AdminDashCtx>(null as any);
+const useAdminDash = () => useContext(AdminDashCtx);
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-interface PollOption {
-  id: string;
-  post_id: string;
-  option_text: string;
-}
+interface PollOption { id: string; post_id: string; option_text: string }
 
 interface RawPost {
-  id: string;
-  admin_id: string;
-  type: 'announcement' | 'poll';
-  title: string;
-  content: string;
-  created_at: string;
+  id: string; admin_id: string; type: 'announcement' | 'poll';
+  title: string; content: string; created_at: string;
   PollOptions?: PollOption[];
 }
 
-interface MitingQuestion {
-  id: string;
-  student_id: string;
-  question_text: string;
-  upvote_count: number;
-  is_approved: boolean;
-  created_at: string;
-}
-
 type FeedTab = 'all' | 'announcement' | 'poll' | 'miting';
-type MitingSubTab = 'live' | 'pending';
 
-interface ModalState {
-  visible: boolean;
-  mode: 'create' | 'edit';
-  post: RawPost | null;
-}
+interface ModalState { visible: boolean; mode: 'create' | 'edit'; post: RawPost | null }
 
 interface SavePayload {
-  type: 'announcement' | 'poll';
-  title: string;
-  content: string;
-  pollOptions: string[];
+  type: 'announcement' | 'poll'; title: string; content: string; pollOptions: string[];
 }
 
 // =============================================================================
@@ -111,13 +84,8 @@ function timeAgo(iso: string): string {
 async function savePollOptions(postId: string, options: string[]): Promise<void> {
   const trimmed = options.map(o => o.trim()).filter(Boolean);
   if (trimmed.length === 0) return;
-
-  const { error: delErr } = await supabase
-    .from('PollOptions')
-    .delete()
-    .eq('post_id', postId);
+  const { error: delErr } = await supabase.from('PollOptions').delete().eq('post_id', postId);
   if (delErr) throw delErr;
-
   const rows = trimmed.map(option_text => ({ post_id: postId, option_text }));
   const { error: insErr } = await supabase.from('PollOptions').insert(rows);
   if (insErr) throw insErr;
@@ -128,6 +96,7 @@ async function savePollOptions(postId: string, options: string[]): Promise<void>
 // =============================================================================
 
 const SummaryHeader: React.FC<{ posts: RawPost[] }> = ({ posts }) => {
+  const { C, s } = useAdminDash();
   const total         = posts.length;
   const announcements = posts.filter(p => p.type === 'announcement').length;
   const polls         = posts.filter(p => p.type === 'poll').length;
@@ -158,49 +127,32 @@ const SummaryHeader: React.FC<{ posts: RawPost[] }> = ({ posts }) => {
 // =============================================================================
 
 const PostRow: React.FC<{
-  post: RawPost;
-  onEdit: (post: RawPost) => void;
-  onDelete: (id: string) => void;
-  isDeleting: boolean;
+  post: RawPost; onEdit: (post: RawPost) => void;
+  onDelete: (id: string) => void; isDeleting: boolean;
 }> = ({ post, onEdit, onDelete, isDeleting }) => {
+  const { C, s } = useAdminDash();
   const isPoll = post.type === 'poll';
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Post',
-      `"${post.title}" will be permanently removed. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
-      ],
-    );
+    Alert.alert('Delete Post', `"${post.title}" will be permanently removed.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDelete(post.id) },
+    ]);
   };
 
   return (
     <View style={s.postRow}>
       <View style={[s.typePill, { backgroundColor: isPoll ? C.greenDim : C.amberGlow }]}>
-        <Ionicons
-          name={isPoll ? 'bar-chart-outline' : 'megaphone-outline'}
-          size={11}
-          color={isPoll ? C.green : C.amber}
-        />
-        <Text style={[s.typePillText, { color: isPoll ? C.green : C.amber }]}>
-          {isPoll ? 'Poll' : 'Notice'}
-        </Text>
+        <Ionicons name={isPoll ? 'bar-chart-outline' : 'megaphone-outline'} size={11} color={isPoll ? C.green : C.amber} />
+        <Text style={[s.typePillText, { color: isPoll ? C.green : C.amber }]}>{isPoll ? 'Poll' : 'Notice'}</Text>
       </View>
-
       <Text style={s.postRowTitle} numberOfLines={1}>{post.title}</Text>
-
-      {post.type === 'announcement' && post.content ? (
-        <Text style={s.postRowBody} numberOfLines={2}>{post.content}</Text>
-      ) : null}
-
-      {post.type === 'poll' && post.PollOptions && post.PollOptions.length > 0 ? (
-        <Text style={s.postRowBody}>
-          {post.PollOptions.length} option{post.PollOptions.length !== 1 ? 's' : ''}
-        </Text>
-      ) : null}
-
+      {post.type === 'announcement' && post.content
+        ? <Text style={s.postRowBody} numberOfLines={2}>{post.content}</Text>
+        : null}
+      {post.type === 'poll' && post.PollOptions && post.PollOptions.length > 0
+        ? <Text style={s.postRowBody}>{post.PollOptions.length} option{post.PollOptions.length !== 1 ? 's' : ''}</Text>
+        : null}
       <View style={s.postRowFooter}>
         <Text style={s.postRowTime}>{timeAgo(post.created_at)}</Text>
         <View style={s.postRowActions}>
@@ -208,15 +160,10 @@ const PostRow: React.FC<{
             <Ionicons name="pencil-outline" size={15} color={C.textSub} />
             <Text style={s.actionBtnText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.actionBtn, s.actionBtnDanger]}
-            onPress={handleDelete}
-            disabled={isDeleting}
-          >
+          <TouchableOpacity style={[s.actionBtn, s.actionBtnDanger]} onPress={handleDelete} disabled={isDeleting}>
             {isDeleting
               ? <ActivityIndicator size={12} color={C.red} />
-              : <Ionicons name="trash-outline" size={15} color={C.red} />
-            }
+              : <Ionicons name="trash-outline" size={15} color={C.red} />}
             <Text style={[s.actionBtnText, { color: C.red }]}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -225,32 +172,24 @@ const PostRow: React.FC<{
   );
 };
 
+
 // =============================================================================
 // CREATE / EDIT MODAL
 // =============================================================================
 
-const EMPTY_FORM = {
-  type: 'announcement' as 'announcement' | 'poll',
-  title: '',
-  content: '',
-};
+const EMPTY_FORM = { type: 'announcement' as 'announcement' | 'poll', title: '', content: '' };
 
 const PostModal: React.FC<{
-  state: ModalState;
-  onClose: () => void;
-  onSave: (payload: SavePayload, id?: string) => void;
-  isSaving: boolean;
+  state: ModalState; onClose: () => void;
+  onSave: (payload: SavePayload, id?: string) => void; isSaving: boolean;
 }> = ({ state, onClose, onSave, isSaving }) => {
+  const { C, s } = useAdminDash();
   const [form, setForm]               = useState(EMPTY_FORM);
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
 
   React.useEffect(() => {
     if (state.visible && state.post) {
-      setForm({
-        type:    state.post.type,
-        title:   state.post.title,
-        content: state.post.content ?? '',
-      });
+      setForm({ type: state.post.type, title: state.post.title, content: state.post.content ?? '' });
       const existing = state.post.PollOptions?.map(o => o.option_text) ?? [];
       setPollOptions(existing.length >= 2 ? existing : [...existing, ...Array(2 - existing.length).fill('')]);
     } else if (state.visible && !state.post) {
@@ -265,16 +204,9 @@ const PostModal: React.FC<{
     setPollOptions(prev => prev.map((o, idx) => (idx === i ? val : o)));
 
   const handleSave = () => {
-    if (!form.title.trim()) {
-      Alert.alert('Missing title', 'Please enter a title before saving.');
-      return;
-    }
-    if (form.type === 'poll') {
-      const filled = pollOptions.filter(o => o.trim());
-      if (filled.length < 2) {
-        Alert.alert('Not enough options', 'A poll needs at least 2 options.');
-        return;
-      }
+    if (!form.title.trim()) { Alert.alert('Missing title', 'Please enter a title before saving.'); return; }
+    if (form.type === 'poll' && pollOptions.filter(o => o.trim()).length < 2) {
+      Alert.alert('Not enough options', 'A poll needs at least 2 options.'); return;
     }
     onSave({ ...form, pollOptions }, state.post?.id);
   };
@@ -283,86 +215,40 @@ const PostModal: React.FC<{
 
   return (
     <Modal visible={state.visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
-
         <View style={s.sheet}>
           <View style={s.sheetHandle} />
-
           <View style={s.sheetHeader}>
             <Text style={s.sheetTitle}>{isEdit ? 'Edit Post' : 'New Post'}</Text>
             <TouchableOpacity onPress={onClose} style={s.sheetClose}>
               <Ionicons name="close" size={20} color={C.textSub} />
             </TouchableOpacity>
           </View>
-
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={s.sheetBody}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={s.fieldLabel}>Post Type</Text>
             <View style={s.typeToggle}>
               {(['announcement', 'poll'] as const).map(t => (
-                <TouchableOpacity
-                  key={t}
-                  style={[s.typeToggleBtn, form.type === t && s.typeToggleBtnActive]}
-                  onPress={() => setForm(f => ({ ...f, type: t }))}
-                >
-                  <Ionicons
-                    name={t === 'poll' ? 'bar-chart-outline' : 'megaphone-outline'}
-                    size={14}
-                    color={form.type === t ? C.green : C.textMuted}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={[s.typeToggleBtnText, form.type === t && s.typeToggleBtnTextActive]}>
-                    {t === 'poll' ? 'Poll' : 'Announcement'}
-                  </Text>
+                <TouchableOpacity key={t} style={[s.typeToggleBtn, form.type === t && s.typeToggleBtnActive]} onPress={() => setForm(f => ({ ...f, type: t }))}>
+                  <Ionicons name={t === 'poll' ? 'bar-chart-outline' : 'megaphone-outline'} size={14} color={form.type === t ? C.green : C.textMuted} style={{ marginRight: 6 }} />
+                  <Text style={[s.typeToggleBtnText, form.type === t && s.typeToggleBtnTextActive]}>{t === 'poll' ? 'Poll' : 'Announcement'}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-
             <Text style={s.fieldLabel}>Title</Text>
-            <TextInput
-              style={s.input}
-              placeholder="Enter a title…"
-              placeholderTextColor={C.textMuted}
-              value={form.title}
-              onChangeText={v => setForm(f => ({ ...f, title: v }))}
-            />
-
+            <TextInput style={s.input} placeholder="Enter a title…" placeholderTextColor={C.textMuted} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} />
             {form.type === 'announcement' && (
               <>
                 <Text style={s.fieldLabel}>Content</Text>
-                <TextInput
-                  style={[s.input, s.inputMultiline]}
-                  placeholder="Write your announcement…"
-                  placeholderTextColor={C.textMuted}
-                  value={form.content}
-                  onChangeText={v => setForm(f => ({ ...f, content: v }))}
-                  multiline
-                  numberOfLines={5}
-                  textAlignVertical="top"
-                />
+                <TextInput style={[s.input, s.inputMultiline]} placeholder="Write your announcement…" placeholderTextColor={C.textMuted} value={form.content} onChangeText={v => setForm(f => ({ ...f, content: v }))} multiline numberOfLines={5} textAlignVertical="top" />
               </>
             )}
-
             {form.type === 'poll' && (
               <>
                 <Text style={s.fieldLabel}>Poll Options</Text>
                 {pollOptions.map((opt, i) => (
                   <View key={i} style={s.pollOptionRow}>
-                    <TextInput
-                      style={[s.input, { flex: 1, marginBottom: 0 }]}
-                      placeholder={`Option ${i + 1}`}
-                      placeholderTextColor={C.textMuted}
-                      value={opt}
-                      onChangeText={v => updateOption(i, v)}
-                    />
+                    <TextInput style={[s.input, { flex: 1, marginBottom: 0 }]} placeholder={`Option ${i + 1}`} placeholderTextColor={C.textMuted} value={opt} onChangeText={v => updateOption(i, v)} />
                     {pollOptions.length > 2 && (
                       <TouchableOpacity style={s.pollOptionRemove} onPress={() => removeOption(i)}>
                         <Ionicons name="close-circle" size={18} color={C.red} />
@@ -377,17 +263,11 @@ const PostModal: React.FC<{
               </>
             )}
           </ScrollView>
-
           <View style={s.sheetFooter}>
-            <TouchableOpacity
-              style={[s.saveBtn, isSaving && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={isSaving}
-            >
+            <TouchableOpacity style={[s.saveBtn, isSaving && { opacity: 0.6 }]} onPress={handleSave} disabled={isSaving}>
               {isSaving
-                ? <ActivityIndicator size={16} color="#000" />
-                : <Ionicons name={isEdit ? 'checkmark' : 'add'} size={16} color="#000" style={{ marginRight: 6 }} />
-              }
+                ? <ActivityIndicator size={16} color="#fff" />
+                : <Ionicons name={isEdit ? 'checkmark' : 'add'} size={16} color="#fff" style={{ marginRight: 6 }} />}
               <Text style={s.saveBtnText}>{isEdit ? 'Save Changes' : 'Publish Post'}</Text>
             </TouchableOpacity>
           </View>
@@ -402,64 +282,62 @@ const PostModal: React.FC<{
 // =============================================================================
 
 const MitingControlPanel: React.FC<{
-  isActive: boolean;
-  isLoading: boolean;
-  isBusy: boolean;
-  onToggle: () => void;
-}> = ({ isActive, isLoading, isBusy, onToggle }) => (
-  <View style={mStyles.card}>
-    <View style={mStyles.statusRow}>
-      <View style={[mStyles.dot, { backgroundColor: isActive ? C.green : C.textMuted }]} />
-      <Text style={[mStyles.statusText, { color: isActive ? C.green : C.textMuted }]}>
-        {isLoading ? 'Loading…' : isActive ? 'LIVE' : 'INACTIVE'}
-      </Text>
-    </View>
+  isActive: boolean; isLoading: boolean; isToggling: boolean; onToggle: () => void;
+}> = ({ isActive, isLoading, isToggling, onToggle }) => {
+  const { C } = useAdminDash();
 
-    <Text style={mStyles.title}>Miting de Avance</Text>
-    <Text style={mStyles.desc}>
-      {isActive
-        ? 'The live Q&A session is currently open. Students can submit and upvote questions.'
-        : 'The live Q&A session is currently closed. Going live will clear all previous questions and open a fresh session.'}
-    </Text>
+  const ms = useMemo(() => ({
+    card: {
+      backgroundColor: C.surface2, borderRadius: 16, borderWidth: 1,
+      borderColor: C.border, padding: 20, marginBottom: 16,
+    } as const,
+    statusRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 12 },
+    dot:        { width: 8, height: 8, borderRadius: 4 } as const,
+    statusText: { fontSize: 11, fontWeight: '800' as const, letterSpacing: 1.2 },
+    title:      { fontSize: 20, fontWeight: '800' as const, color: C.text, marginBottom: 8 },
+    desc:       { fontSize: 13, color: C.textSub, lineHeight: 20, marginBottom: 20 },
+    toggleBtn:  { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, borderRadius: 14, paddingVertical: 15, marginBottom: 14 },
+    toggleBtnLive: { backgroundColor: C.green } as const,
+    toggleBtnEnd:  { backgroundColor: '#EF4444' } as const,
+    toggleBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#fff' },
+    infoRow:    { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+    infoText:   { fontSize: 11, color: C.textMuted, flex: 1, lineHeight: 16 },
+  }), [C]);
 
-    <TouchableOpacity
-      style={[
-        mStyles.toggleBtn,
-        isActive ? mStyles.toggleBtnEnd : mStyles.toggleBtnLive,
-        (isLoading || isBusy) && { opacity: 0.5 },
-      ]}
-      onPress={onToggle}
-      disabled={isLoading || isBusy}
-      activeOpacity={0.8}
-    >
-      {isBusy ? (
-        <ActivityIndicator size={16} color="#fff" />
-      ) : (
-        <Ionicons
-          name={isActive ? 'mic-off-outline' : 'mic-outline'}
-          size={18}
-          color="#fff"
-          style={{ marginRight: 8 }}
-        />
-      )}
-      <Text style={mStyles.toggleBtnText}>
-        {isBusy ? 'Updating…' : isActive ? 'End Session' : 'Go Live'}
-      </Text>
-    </TouchableOpacity>
-
-    <View style={mStyles.infoRow}>
-      <Ionicons name="information-circle-outline" size={14} color={C.textMuted} />
-      <Text style={mStyles.infoText}>
+  return (
+    <View style={ms.card}>
+      <View style={ms.statusRow}>
+        <View style={[ms.dot, { backgroundColor: isActive ? C.green : C.textMuted }]} />
+        <Text style={[ms.statusText, { color: isActive ? C.green : C.textMuted }]}>
+          {isLoading ? 'Loading…' : isActive ? 'LIVE' : 'INACTIVE'}
+        </Text>
+      </View>
+      <Text style={ms.title}>Miting de Avance</Text>
+      <Text style={ms.desc}>
         {isActive
-          ? 'Students receive a notification the moment you go live.'
-          : 'Previous questions are kept until you start a new session.'}
+          ? 'The live Q&A session is currently open. Students can submit and upvote questions.'
+          : 'The live Q&A session is currently closed. Tap the button below to open it for students.'}
       </Text>
+      <TouchableOpacity
+        style={[ms.toggleBtn, isActive ? ms.toggleBtnEnd : ms.toggleBtnLive, (isLoading || isToggling) && { opacity: 0.5 }]}
+        onPress={onToggle} disabled={isLoading || isToggling} activeOpacity={0.8}
+      >
+        {isToggling
+          ? <ActivityIndicator size={16} color="#fff" />
+          : <Ionicons name={isActive ? 'mic-off-outline' : 'mic-outline'} size={18} color="#fff" style={{ marginRight: 8 }} />}
+        <Text style={ms.toggleBtnText}>{isToggling ? 'Updating…' : isActive ? 'End Session' : 'Go Live'}</Text>
+      </TouchableOpacity>
+      <View style={ms.infoRow}>
+        <Ionicons name="information-circle-outline" size={14} color={C.textMuted} />
+        <Text style={ms.infoText}>Students receive a notification the moment you go live.</Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 // =============================================================================
 // MITING — LIVE FEED CARD
+// I CUT OFF HERE
 // =============================================================================
 
 const LiveQuestionCard: React.FC<{
@@ -525,6 +403,7 @@ const LiveQuestionCard: React.FC<{
 
 // =============================================================================
 // MITING — PENDING APPROVAL CARD
+// I CUT OFF HERE
 // =============================================================================
 
 const PendingQuestionCard: React.FC<{
@@ -580,6 +459,7 @@ const PendingQuestionCard: React.FC<{
 
 // =============================================================================
 // MITING STYLES
+// I CUT OFF HERE
 // =============================================================================
 
 const mStyles = {
