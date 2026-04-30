@@ -22,11 +22,15 @@ import {
   addNotificationResponseReceivedListener,
 } from './app/notifications/notificationService';
 import { useAuthStore } from './app/stores/authStore';
+import { hydrateTheme } from './app/stores/themeStore';
 
 export default function App() {
   const { setSession, setRole, setProfile, setInitialized, clear } = useAuthStore();
 
   useEffect(() => {
+    // ── 0. Restore persisted theme preference ─────────────────────────────────
+    hydrateTheme();
+
     // ── 1. Request notification permissions on mount ──────────────────────────
     registerForNotificationsAsync();
 

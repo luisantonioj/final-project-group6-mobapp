@@ -6,21 +6,23 @@ import { AdminDashboardScreen }  from '../screens/admin/AdminDashboardScreen';
 import { AdminCandidatesScreen } from '../screens/admin/AdminCandidatesScreen';
 import { AdminResultsScreen }    from '../screens/admin/AdminResultsScreen';
 import { AdminSettingsScreen }   from '../screens/admin/AdminSettingsScreen';
-import { T } from '../theme';
+import { useThemeColors } from '../theme';
 
 import type { AdminTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<AdminTabParamList>();
 
 export function AdminNavigator() {
+  const C = useThemeColors();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor:   T.green,
-        tabBarInactiveTintColor: T.textMuted,
+        tabBarActiveTintColor:   C.green,
+        tabBarInactiveTintColor: C.textMuted,
         tabBarStyle: {
-          backgroundColor: T.surface,
-          borderTopColor:  T.border,
+          backgroundColor: C.surface,
+          borderTopColor:  C.border,
           borderTopWidth:  1,
         },
         headerShown: false,

@@ -15,21 +15,23 @@ import { DashboardScreen } from '../screens/student/DashboardScreen';
 import { VoteScreen } from '../screens/student/VoteScreen';
 import { MitingScreen } from '../screens/student/MitingScreen';
 import { ProfileScreen } from '../screens/student/ProfileScreen';
-import { T } from '../theme';
+import { useThemeColors } from '../theme';
 
 import type { AppTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
 export function AppNavigator() {
+  const C = useThemeColors();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor:   T.green,
-        tabBarInactiveTintColor: T.textMuted,
+        tabBarActiveTintColor:   C.green,
+        tabBarInactiveTintColor: C.textMuted,
         tabBarStyle: {
-          backgroundColor: T.surface,
-          borderTopColor:  T.border,
+          backgroundColor: C.surface,
+          borderTopColor:  C.border,
           borderTopWidth:  1,
         },
         headerShown: false,

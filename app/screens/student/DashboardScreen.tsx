@@ -10,7 +10,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,19 +21,15 @@ import {
   TextInput,
   Animated,
   StatusBar,
+  StyleSheet,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  COLORS,
-  screenStyles,
-  countdownStyles,
-  feedStyles,
-  liveStyles,
-  shared,
-} from './DashboardScreen.styles';
+import { makeStyles } from './DashboardScreen.styles';
+import { useThemeColors } from '../../theme';
+import { useThemeStore } from '../../stores/themeStore';
 import { usePosts } from '../../hooks/usePosts';
 import { useComments, useCreateComment, useDeleteComment, Comment as CommentType } from '../../hooks/useComments';
 import { useLikes, useToggleLike } from '../../hooks/useLikes';
@@ -100,6 +96,9 @@ const pad = (n: number) => String(Math.max(0, n)).padStart(2, '0');
 // =============================================================================
 
 const VotingCountdown: React.FC = () => {
+  const C = useThemeColors();
+  const S = useMemo(() => makeStyles(C), [C]);
+
   const { settings, votingStatus, isLoading } = useSettings();
   const [secondsLeft, setSecondsLeft]         = useState(0);
   const [secondsUntil, setSecondsUntil]       = useState(0);
@@ -136,19 +135,19 @@ const VotingCountdown: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={countdownStyles.wrapper}>
-        <View style={countdownStyles.glowBar} />
-        <ActivityIndicator color={COLORS.green} style={{ marginVertical: 24 }} />
+      <View style={S.countdown.wrapper}>
+        <View style={S.countdown.glowBar} />
+        <ActivityIndicator color={C.green} style={{ marginVertical: 24 }} />
       </View>
     );
   }
 
   if (votingStatus === 'unconfigured') {
     return (
-      <View style={countdownStyles.wrapper}>
-        <View style={countdownStyles.glowBar} />
-        <Text style={countdownStyles.label}>🗳 Election</Text>
-        <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
+      <View style={S.countdown.wrapper}>
+        <View style={S.countdown.glowBar} />
+        <Text style={S.countdown.label}>🗳 Election</Text>
+        <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
           Voting schedule has not been set yet.
         </Text>
       </View>
@@ -158,29 +157,29 @@ const VotingCountdown: React.FC = () => {
   if (votingStatus === 'not_started') {
     const { h, m, s } = secondsToHMS(secondsUntil);
     return (
-      <View style={countdownStyles.wrapper}>
-        <View style={countdownStyles.glowBar} />
-        <Text style={countdownStyles.label}>🗳 Voting Opens In</Text>
-        <View style={countdownStyles.timerRow}>
+      <View style={S.countdown.wrapper}>
+        <View style={S.countdown.glowBar} />
+        <Text style={S.countdown.label}>🗳 Voting Opens In</Text>
+        <View style={S.countdown.timerRow}>
           {[{ val: h, unit: 'Hrs' }, { val: m, unit: 'Min' }, { val: s, unit: 'Sec' }].map(
             (item, idx, arr) => (
               <React.Fragment key={item.unit}>
-                <View style={countdownStyles.timeBlock}>
-                  <Text style={countdownStyles.timeValue}>{pad(item.val)}</Text>
-                  <Text style={countdownStyles.timeUnit}>{item.unit}</Text>
+                <View style={S.countdown.timeBlock}>
+                  <Text style={S.countdown.timeValue}>{pad(item.val)}</Text>
+                  <Text style={S.countdown.timeUnit}>{item.unit}</Text>
                 </View>
                 {idx < arr.length - 1 && (
-                  <Text style={countdownStyles.timeSeparator}>:</Text>
+                  <Text style={S.countdown.timeSeparator}>:</Text>
                 )}
               </React.Fragment>
             ),
           )}
         </View>
-        <View style={countdownStyles.progressTrack}>
-          <Animated.View style={[countdownStyles.progressBar, { width: '0%' }]} />
+        <View style={S.countdown.progressTrack}>
+          <Animated.View style={[S.countdown.progressBar, { width: '0%' }]} />
         </View>
         {settings?.voting_start_time && (
-          <Text style={countdownStyles.subText}>
+          <Text style={S.countdown.subText}>
             Opens: {formatDateTime(settings.voting_start_time)}
           </Text>
         )}
@@ -190,25 +189,25 @@ const VotingCountdown: React.FC = () => {
 
   if (votingStatus === 'ended') {
     return (
-      <View style={countdownStyles.wrapper}>
-        <View style={[countdownStyles.glowBar, { backgroundColor: COLORS.textMuted }]} />
-        <Text style={countdownStyles.label}>🗳 Voting Has Ended</Text>
-        <View style={countdownStyles.timerRow}>
+      <View style={S.countdown.wrapper}>
+        <View style={[S.countdown.glowBar, { backgroundColor: C.textMuted }]} />
+        <Text style={S.countdown.label}>🗳 Voting Has Ended</Text>
+        <View style={S.countdown.timerRow}>
           {['00', '00', '00'].map((v, i) => (
             <React.Fragment key={i}>
-              <View style={countdownStyles.timeBlock}>
-                <Text style={[countdownStyles.timeValue, { color: COLORS.textMuted }]}>{v}</Text>
-                <Text style={countdownStyles.timeUnit}>{['Hrs', 'Min', 'Sec'][i]}</Text>
+              <View style={S.countdown.timeBlock}>
+                <Text style={[S.countdown.timeValue, { color: C.textMuted }]}>{v}</Text>
+                <Text style={S.countdown.timeUnit}>{['Hrs', 'Min', 'Sec'][i]}</Text>
               </View>
-              {i < 2 && <Text style={countdownStyles.timeSeparator}>:</Text>}
+              {i < 2 && <Text style={S.countdown.timeSeparator}>:</Text>}
             </React.Fragment>
           ))}
         </View>
-        <View style={countdownStyles.progressTrack}>
-          <Animated.View style={[countdownStyles.progressBar, { width: '100%' }]} />
+        <View style={S.countdown.progressTrack}>
+          <Animated.View style={[S.countdown.progressBar, { width: '100%' }]} />
         </View>
         {settings?.voting_end_time && (
-          <Text style={countdownStyles.subText}>
+          <Text style={S.countdown.subText}>
             Closed: {formatDateTime(settings.voting_end_time)}
           </Text>
         )}
@@ -222,29 +221,29 @@ const VotingCountdown: React.FC = () => {
   });
 
   return (
-    <View style={countdownStyles.wrapper}>
-      <View style={countdownStyles.glowBar} />
-      <Text style={countdownStyles.label}>⏱ Voting Closes In</Text>
-      <View style={countdownStyles.timerRow}>
+    <View style={S.countdown.wrapper}>
+      <View style={S.countdown.glowBar} />
+      <Text style={S.countdown.label}>⏱ Voting Closes In</Text>
+      <View style={S.countdown.timerRow}>
         {[{ val: h, unit: 'Hrs' }, { val: m, unit: 'Min' }, { val: s, unit: 'Sec' }].map(
           (item, idx, arr) => (
             <React.Fragment key={item.unit}>
-              <View style={countdownStyles.timeBlock}>
-                <Text style={countdownStyles.timeValue}>{pad(item.val)}</Text>
-                <Text style={countdownStyles.timeUnit}>{item.unit}</Text>
+              <View style={S.countdown.timeBlock}>
+                <Text style={S.countdown.timeValue}>{pad(item.val)}</Text>
+                <Text style={S.countdown.timeUnit}>{item.unit}</Text>
               </View>
               {idx < arr.length - 1 && (
-                <Text style={countdownStyles.timeSeparator}>:</Text>
+                <Text style={S.countdown.timeSeparator}>:</Text>
               )}
             </React.Fragment>
           ),
         )}
       </View>
-      <View style={countdownStyles.progressTrack}>
-        <Animated.View style={[countdownStyles.progressBar, { width: progressWidth }]} />
+      <View style={S.countdown.progressTrack}>
+        <Animated.View style={[S.countdown.progressBar, { width: progressWidth }]} />
       </View>
       {settings?.voting_end_time && (
-        <Text style={countdownStyles.subText}>
+        <Text style={S.countdown.subText}>
           {formatDateTime(settings.voting_start_time ?? '')} → {formatDateTime(settings.voting_end_time)}
         </Text>
       )}
@@ -262,32 +261,30 @@ const DUMMY_TURNOUT = {
   asOf:        'Apr 15, 2026 · 08:02 PM',
   colleges: [
     { name: 'CON',       pct: 84.9, voted: 636, total: 749,  color: '#16A34A' },
-    { name: 'CEAS/CCJE', pct: 63.9, voted: 478, total: 748,  color: '#1D4ED8' },
+    { name: 'CEAS', pct: 63.9, voted: 478, total: 748,  color: '#1D4ED8' },
     { name: 'CBEAM',     pct: 59.9, voted: 401, total: 669,  color: '#B45309' },
     { name: 'CIHTM',     pct: 48.6, voted: 312, total: 642,  color: '#7C3AED' },
     { name: 'CITE',      pct: 41.2, voted: 289, total: 702,  color: '#DC2626' },
-    { name: 'CCAFS',     pct: 37.8, voted: 204, total: 540,  color: '#4726DC' },
-    { name: 'CAS',       pct: 29.3, voted: 183, total: 625,  color: '#D97706' },
-    { name: 'COM',       pct: 22.1, voted: 118, total: 533,  color: '#6D28D9' },
   ],
 };
 
 const DonutRing: React.FC<{ pct: number; size: number; stroke: number }> = ({ pct, size, stroke }) => {
+  const C = useThemeColors();
   return (
     <View style={{ width: size, height: size }}>
       <Animated.View>
         <View style={{
           width: size, height: size, borderRadius: size / 2,
-          borderWidth: stroke, borderColor: COLORS.border,
+          borderWidth: stroke, borderColor: C.border,
           position: 'absolute',
         }} />
         <View style={{
           width: size, height: size, borderRadius: size / 2,
           borderWidth: stroke,
-          borderTopColor:    COLORS.green,
-          borderRightColor:  pct > 25  ? COLORS.green : 'transparent',
-          borderBottomColor: pct > 50  ? COLORS.green : 'transparent',
-          borderLeftColor:   pct > 75  ? COLORS.green : 'transparent',
+          borderTopColor:    C.green,
+          borderRightColor:  pct > 25  ? C.green : 'transparent',
+          borderBottomColor: pct > 50  ? C.green : 'transparent',
+          borderLeftColor:   pct > 75  ? C.green : 'transparent',
           position: 'absolute',
           transform: [{ rotate: '-90deg' }],
           opacity: 0.9,
@@ -298,6 +295,9 @@ const DonutRing: React.FC<{ pct: number; size: number; stroke: number }> = ({ pc
 };
 
 const LiveVotingBoard: React.FC = () => {
+  const C = useThemeColors();
+  const S = useMemo(() => makeStyles(C), [C]);
+
   const { totalVoters, totalVoted, asOf, colleges } = DUMMY_TURNOUT;
   const overallPct = Math.round((totalVoted / totalVoters) * 100 * 10) / 10;
   const topCollege = colleges[0];
@@ -309,33 +309,33 @@ const LiveVotingBoard: React.FC = () => {
   }
 
   return (
-    <View>
+    <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-        <Text style={[shared.sectionTitle, { flex: 1 }]}>Voter Turnout</Text>
-        <View style={liveStyles.livePill}>
-          <View style={liveStyles.liveDot} />
-          <Text style={liveStyles.livePillText}>LIVE</Text>
+        <Text style={[S.shared.sectionTitle, { flex: 1 }]}>Voter Turnout</Text>
+        <View style={S.live.livePill}>
+          <View style={S.live.liveDot} />
+          <Text style={S.live.livePillText}>LIVE</Text>
         </View>
       </View>
 
       {/* Summary card */}
-      <View style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 }]}>
+      <View style={[S.shared.card, { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 }]}>
         <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center' }}>
           <DonutRing pct={overallPct} size={80} stroke={10} />
           <View style={{ position: 'absolute', alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.green }}>{overallPct}%</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: C.green }}>{overallPct}%</Text>
           </View>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+          <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
             SG Elections 2025–2026
           </Text>
-          <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8 }}>
+          <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
             As of {asOf}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-            <Text style={{ fontSize: 24, fontWeight: '700', color: COLORS.green }}>{overallPct}%</Text>
-            <Text style={{ fontSize: 13, color: COLORS.textMuted }}>
+            <Text style={{ fontSize: 24, fontWeight: '700', color: C.green }}>{overallPct}%</Text>
+            <Text style={{ fontSize: 13, color: C.textMuted }}>
               {totalVoted.toLocaleString()} / {totalVoters.toLocaleString()}
             </Text>
           </View>
@@ -343,48 +343,48 @@ const LiveVotingBoard: React.FC = () => {
       </View>
 
       {/* #1 College featured card */}
-      <View style={[shared.card, {
-        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10,
-        borderColor: COLORS.green, borderWidth: 1.5,
+      <View style={[S.shared.card, {
+        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12,
+        borderColor: C.green, borderWidth: 1.5,
       }]}>
         <View style={{
           width: 44, height: 44, borderRadius: 22,
-          backgroundColor: COLORS.greenGlow,
+          backgroundColor: C.surface2, // there is no green glow
           alignItems: 'center', justifyContent: 'center',
         }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.green }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.green }}>
             {topCollege.name[0]}
           </Text>
         </View>
 
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 2 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 2 }}>
             {topCollege.name}
           </Text>
-          <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 6 }}>
+          <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>
             {topCollege.pct}% participation · {topCollege.voted.toLocaleString()} / {topCollege.total.toLocaleString()}
           </Text>
-          <View style={{ backgroundColor: COLORS.border, borderRadius: 4, height: 5, overflow: 'hidden' }}>
-            <View style={{ width: `${topCollege.pct}%`, height: '100%', backgroundColor: COLORS.green, borderRadius: 4 }} />
+          <View style={{ backgroundColor: C.border, borderRadius: 4, height: 5, overflow: 'hidden' }}>
+            <View style={{ width: `${topCollege.pct}%`, height: '100%', backgroundColor: C.green, borderRadius: 4 }} />
           </View>
         </View>
 
         <View style={{
-          backgroundColor: COLORS.greenGlow, borderRadius: 10,
+          backgroundColor: C.surface2, borderRadius: 10, // there is no green glow
           paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center',
         }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.green }}>#1</Text>
-          <Text style={{ fontSize: 9, color: COLORS.green, textAlign: 'center', marginTop: 1 }}>Most{''}Engaged</Text>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: C.green }}>#1</Text>
+          <Text style={{ fontSize: 9, color: C.green, textAlign: 'center', marginTop: 1 }}>Most{''}Engaged</Text>
         </View>
       </View>
 
       {/* Remaining colleges in 2-col grid */}
       {rows.map((pair, ri) => (
-        <View key={ri} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+        <View key={ri} style={{ flexDirection: 'row', gap: 10, }}>
           {pair.map((col, ci) => {
             const rank = ri * 2 + ci + 2;
             return (
-              <View key={col.name} style={[shared.card, { flex: 1, gap: 6 }]}>
+              <View key={col.name} style={[S.shared.card, { flex: 1, gap: 6 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={{
                     width: 32, height: 32, borderRadius: 16,
@@ -396,24 +396,24 @@ const LiveVotingBoard: React.FC = () => {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: C.text }} numberOfLines={1}>
                       {col.name}
                     </Text>
-                    <Text style={{ fontSize: 10, color: COLORS.textMuted }}>
+                    <Text style={{ fontSize: 10, color: C.textMuted }}>
                       {col.pct}%
                     </Text>
                   </View>
                   <View style={{
-                    backgroundColor: COLORS.bgElevated,
+                    backgroundColor: C.surface,
                     borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
                   }}>
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textMuted }}>#{rank}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: C.textMuted }}>#{rank}</Text>
                   </View>
                 </View>
-                <View style={{ backgroundColor: COLORS.border, borderRadius: 3, height: 4, overflow: 'hidden' }}>
+                <View style={{ backgroundColor: C.border, borderRadius: 3, height: 4, overflow: 'hidden' }}>
                   <View style={{ width: `${col.pct}%`, height: '100%', backgroundColor: col.color, borderRadius: 3 }} />
                 </View>
-                <Text style={{ fontSize: 10, color: COLORS.textMuted }}>
+                <Text style={{ fontSize: 10, color: C.textMuted }}>
                   {col.voted.toLocaleString()} / {col.total.toLocaleString()}
                 </Text>
               </View>
@@ -430,6 +430,38 @@ const LiveVotingBoard: React.FC = () => {
 // =============================================================================
 
 const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
+  const C = useThemeColors();
+
+  // pStyles moved inside component — was a module-level const using COLORS (undefined at load time)
+  // COLORS.bgElevated did not exist in ThemeColors; replaced with C.surface
+  const pStyles = useMemo(() => StyleSheet.create({
+    optionBtn: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingVertical: 11, paddingHorizontal: 14, marginBottom: 8,
+      borderRadius: 10, backgroundColor: C.surface,
+      borderWidth: 1, borderColor: C.border,
+    },
+    optionRadio: {
+      width: 16, height: 16, borderRadius: 8,
+      borderWidth: 2, borderColor: C.textMuted, marginRight: 10,
+    },
+    optionText:   { color: C.text, fontSize: 14, flex: 1 },
+    resultRow:    { marginBottom: 12 },
+    resultHeader: {
+      flexDirection: 'row', justifyContent: 'space-between',
+      alignItems: 'center', marginBottom: 5,
+    },
+    resultLabel:  { color: C.text, fontSize: 13, fontWeight: '500', flex: 1 },
+    resultPct:    { color: C.textMuted, fontSize: 13, fontWeight: '600', marginLeft: 8 },
+    barTrack: {
+      height: 6, backgroundColor: C.surface,
+      borderRadius: 4, overflow: 'hidden', marginBottom: 4,
+    },
+    barFill:     { height: 6, borderRadius: 4, backgroundColor: C.border },
+    resultCount: { fontSize: 11, color: C.textMuted },
+    totalText:   { fontSize: 11, color: C.textMuted, marginTop: 4 },
+  }), [C]);
+
   const { data, isLoading, isError } = usePollResponses(post.id, userId);
   const { mutateAsync: submitVote, isPending: isSubmitting } = useSubmitPollResponse(post.id);
   const [pendingOptionId, setPendingOptionId] = useState<string | null>(null);
@@ -459,7 +491,7 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
   if (isLoading) {
     return (
       <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-        <ActivityIndicator size="small" color={COLORS.green} />
+        <ActivityIndicator size="small" color={C.green} />
       </View>
     );
   }
@@ -467,7 +499,7 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
   if (isError || options.length === 0) {
     return (
       <View style={{ paddingVertical: 12 }}>
-        <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+        <Text style={{ color: C.textMuted, fontSize: 13 }}>
           {isError ? 'Could not load poll options.' : 'No options available.'}
         </Text>
       </View>
@@ -489,13 +521,13 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
               <View style={pStyles.resultHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                   {isMyVote && (
-                    <Ionicons name="checkmark-circle" size={14} color={COLORS.green} style={{ marginRight: 5 }} />
+                    <Ionicons name="checkmark-circle" size={14} color={C.green} style={{ marginRight: 5 }} />
                   )}
-                  <Text style={[pStyles.resultLabel, isMyVote && { color: COLORS.green }]} numberOfLines={1}>
+                  <Text style={[pStyles.resultLabel, isMyVote && { color: C.green }]} numberOfLines={1}>
                     {opt.option_text}
                   </Text>
                 </View>
-                <Text style={[pStyles.resultPct, isLeading && { color: COLORS.green, fontWeight: '700' }]}>
+                <Text style={[pStyles.resultPct, isLeading && { color: C.green, fontWeight: '700' }]}>
                   {pct}%
                 </Text>
               </View>
@@ -504,7 +536,7 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
                   pStyles.barFill,
                   { width: `${pct}%` },
                   isMyVote  && { backgroundColor: 'rgba(27,98,53,0.30)' },
-                  isLeading && { backgroundColor: COLORS.green },
+                  isLeading && { backgroundColor: C.green },
                 ]} />
               </View>
               <Text style={pStyles.resultCount}>
@@ -523,7 +555,7 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
             activeOpacity={0.7}
           >
             {isSubmitting && pendingOptionId === opt.id
-              ? <ActivityIndicator size={14} color={COLORS.green} style={{ marginRight: 10 }} />
+              ? <ActivityIndicator size={14} color={C.green} style={{ marginRight: 10 }} />
               : <View style={pStyles.optionRadio} />
             }
             <Text style={pStyles.optionText}>{opt.option_text}</Text>
@@ -538,34 +570,6 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
   );
 };
 
-const pStyles = {
-  optionBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const,
-    paddingVertical: 11, paddingHorizontal: 14, marginBottom: 8,
-    borderRadius: 10, backgroundColor: COLORS.bgElevated,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  optionRadio: {
-    width: 16, height: 16, borderRadius: 8,
-    borderWidth: 2, borderColor: COLORS.textMuted, marginRight: 10,
-  },
-  optionText:   { color: COLORS.text, fontSize: 14, flex: 1 },
-  resultRow:    { marginBottom: 12 },
-  resultHeader: {
-    flexDirection: 'row' as const, justifyContent: 'space-between' as const,
-    alignItems: 'center' as const, marginBottom: 5,
-  },
-  resultLabel:  { color: COLORS.text, fontSize: 13, fontWeight: '500' as const, flex: 1 },
-  resultPct:    { color: COLORS.textMuted, fontSize: 13, fontWeight: '600' as const, marginLeft: 8 },
-  barTrack: {
-    height: 6, backgroundColor: COLORS.bgElevated,
-    borderRadius: 4, overflow: 'hidden' as const, marginBottom: 4,
-  },
-  barFill:     { height: 6, borderRadius: 4, backgroundColor: COLORS.border },
-  resultCount: { fontSize: 11, color: COLORS.textMuted },
-  totalText:   { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
-};
-
 // =============================================================================
 // POST CARD
 // =============================================================================
@@ -576,6 +580,9 @@ const CommentRow: React.FC<{
   postId: string;
   depth?: number;
 }> = ({ comment, userId, postId, depth = 0 }) => {
+  const C = useThemeColors();
+  const S = useMemo(() => makeStyles(C), [C]);
+
   const [replyVisible, setReplyVisible] = useState(false);
   const [replyDraft, setReplyDraft]     = useState('');
   const { mutateAsync: createComment, isPending: isSending } = useCreateComment(postId);
@@ -603,27 +610,27 @@ const CommentRow: React.FC<{
 
   return (
     <View style={{ marginLeft: depth > 0 ? 28 : 0, marginBottom: 10 }}>
-      <View style={feedStyles.comment}>
-        <View style={feedStyles.commentAvatar}>
-          <Text style={feedStyles.commentAvatarText}>{comment.authorInitials}</Text>
+      <View style={S.feed.comment}>
+        <View style={S.feed.commentAvatar}>
+          <Text style={S.feed.commentAvatarText}>{comment.authorInitials}</Text>
         </View>
-        <View style={[feedStyles.commentBubble, { flex: 1 }]}>
+        <View style={[S.feed.commentBubble, { flex: 1 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={feedStyles.commentUser}>{comment.authorName}</Text>
-            <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{timeAgo(comment.created_at)}</Text>
+            <Text style={S.feed.commentUser}>{comment.authorName}</Text>
+            <Text style={{ fontSize: 10, color: C.textMuted }}>{timeAgo(comment.created_at)}</Text>
           </View>
-          <Text style={feedStyles.commentText}>{comment.content}</Text>
+          <Text style={S.feed.commentText}>{comment.content}</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
             {depth === 0 && (
               <TouchableOpacity onPress={() => setReplyVisible(v => !v)}>
-                <Text style={{ fontSize: 11, color: COLORS.green, fontWeight: '600' }}>
+                <Text style={{ fontSize: 11, color: C.green, fontWeight: '600' }}>
                   {replyVisible ? 'Cancel' : 'Reply'}
                 </Text>
               </TouchableOpacity>
             )}
             {isOwn && (
               <TouchableOpacity onPress={handleDelete}>
-                <Text style={{ fontSize: 11, color: COLORS.textMuted }}>Delete</Text>
+                <Text style={{ fontSize: 11, color: C.textMuted }}>Delete</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -631,24 +638,24 @@ const CommentRow: React.FC<{
       </View>
 
       {replyVisible && (
-        <View style={[feedStyles.commentInput, { marginLeft: 28, marginTop: 6 }]}>
-          <View style={feedStyles.commentAvatar}>
-            <Text style={feedStyles.commentAvatarText}>AN</Text>
+        <View style={[S.feed.commentInput, { marginLeft: 28, marginTop: 6 }]}>
+          <View style={S.feed.commentAvatar}>
+            <Text style={S.feed.commentAvatarText}>AN</Text>
           </View>
-          <View style={feedStyles.commentInputBox}>
+          <View style={S.feed.commentInputBox}>
             <TextInput
-              style={feedStyles.commentInputText}
+              style={S.feed.commentInputText}
               placeholder="Write a reply…"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={C.textMuted}
               value={replyDraft}
               onChangeText={setReplyDraft}
               multiline
               autoFocus
             />
           </View>
-          <TouchableOpacity style={feedStyles.commentSendBtn} onPress={handleReply} disabled={isSending}>
+          <TouchableOpacity style={S.feed.commentSendBtn} onPress={handleReply} disabled={isSending}>
             {isSending
-              ? <ActivityIndicator size={12} color={COLORS.green} />
+              ? <ActivityIndicator size={12} color={C.green} />
               : <Text style={{ fontSize: 14, color: '#fff' }}>↑</Text>
             }
           </TouchableOpacity>
@@ -665,6 +672,9 @@ const CommentRow: React.FC<{
 };
 
 const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
+  const C = useThemeColors();
+  const S = useMemo(() => makeStyles(C), [C]);
+
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [draftComment, setDraftComment]       = useState('');
 
@@ -705,54 +715,54 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
   };
 
   return (
-    <View style={feedStyles.postCard}>
-      <View style={feedStyles.postHeader}>
-        <View style={feedStyles.avatar}>
-          <Text style={feedStyles.avatarText}>{authorInitials}</Text>
+    <View style={S.feed.postCard}>
+      <View style={S.feed.postHeader}>
+        <View style={S.feed.avatar}>
+          <Text style={S.feed.avatarText}>{authorInitials}</Text>
         </View>
-        <View style={feedStyles.postMeta}>
-          <Text style={feedStyles.postAuthor}>{authorLabel}</Text>
-          <Text style={feedStyles.postTime}>{roleLabel} · {timeAgo(post.created_at)}</Text>
+        <View style={S.feed.postMeta}>
+          <Text style={S.feed.postAuthor}>{authorLabel}</Text>
+          <Text style={S.feed.postTime}>{roleLabel} · {timeAgo(post.created_at)}</Text>
         </View>
-        <View style={[shared.badge, {
-          backgroundColor: post.type === 'poll' ? COLORS.greenGlow : COLORS.bgElevated,
+        <View style={[S.shared.badge, {
+          backgroundColor: post.type === 'poll' ? C.surface2 : C.surface, // THERE IS NO GREENGLOW
         }]}>
-          <Text style={[shared.badgeText, { color: post.type === 'poll' ? COLORS.green : COLORS.textMuted }]}>
+          <Text style={[S.shared.badgeText, { color: post.type === 'poll' ? C.green : C.textMuted }]}>
             {post.type === 'poll' ? 'Poll' : 'Notice'}
           </Text>
         </View>
       </View>
 
-      {post.title ? <Text style={feedStyles.postTitle}>{post.title}</Text> : null}
+      {post.title ? <Text style={S.feed.postTitle}>{post.title}</Text> : null}
       {post.type === 'announcement' && post.content
-        ? <Text style={feedStyles.postBody}>{post.content}</Text>
+        ? <Text style={S.feed.postBody}>{post.content}</Text>
         : null}
       {post.type === 'poll' ? <PollVoter post={post} userId={userId} /> : null}
 
-      <View style={feedStyles.postActions}>
-        <TouchableOpacity style={feedStyles.postAction} onPress={handleLike} disabled={isTogglingLike}>
+      <View style={S.feed.postActions}>
+        <TouchableOpacity style={S.feed.postAction} onPress={handleLike} disabled={isTogglingLike}>
           <Ionicons
             name={hasLiked ? 'heart' : 'heart-outline'}
             size={18}
-            color={hasLiked ? COLORS.green : COLORS.textSub}
+            color={hasLiked ? C.green : C.textSub}
           />
-          <Text style={feedStyles.postActionText}>{likeCount}</Text>
+          <Text style={S.feed.postActionText}>{likeCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={feedStyles.postAction} onPress={() => setCommentsVisible(v => !v)}>
-          <Ionicons name="chatbubble-outline" size={18} color={COLORS.textSub} />
-          <Text style={feedStyles.postActionText}>
+        <TouchableOpacity style={S.feed.postAction} onPress={() => setCommentsVisible(v => !v)}>
+          <Ionicons name="chatbubble-outline" size={18} color={C.textSub} />
+          <Text style={S.feed.postActionText}>
             {totalCommentCount} {totalCommentCount === 1 ? 'Comment' : 'Comments'}
           </Text>
         </TouchableOpacity>
       </View>
 
       {commentsVisible && (
-        <View style={feedStyles.commentSection}>
+        <View style={S.feed.commentSection}>
           {commentsLoading ? (
-            <ActivityIndicator size="small" color={COLORS.green} style={{ marginVertical: 12 }} />
+            <ActivityIndicator size="small" color={C.green} style={{ marginVertical: 12 }} />
           ) : comments.length === 0 ? (
-            <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 10 }}>
+            <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 10 }}>
               No comments yet. Be the first!
             </Text>
           ) : (
@@ -761,27 +771,27 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
             ))
           )}
 
-          <View style={feedStyles.commentInput}>
-            <View style={feedStyles.commentAvatar}>
-              <Text style={feedStyles.commentAvatarText}>AN</Text>
+          <View style={S.feed.commentInput}>
+            <View style={S.feed.commentAvatar}>
+              <Text style={S.feed.commentAvatarText}>AN</Text>
             </View>
-            <View style={feedStyles.commentInputBox}>
+            <View style={S.feed.commentInputBox}>
               <TextInput
-                style={feedStyles.commentInputText}
+                style={S.feed.commentInputText}
                 placeholder="Add a comment…"
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={C.textMuted}
                 value={draftComment}
                 onChangeText={setDraftComment}
                 multiline
               />
             </View>
             <TouchableOpacity
-              style={feedStyles.commentSendBtn}
+              style={S.feed.commentSendBtn}
               onPress={handleSubmitComment}
               disabled={isSendingComment}
             >
               {isSendingComment
-                ? <ActivityIndicator size={12} color={COLORS.green} />
+                ? <ActivityIndicator size={12} color={C.green} />
                 : <Text style={{ fontSize: 14, color: '#fff' }}>↑</Text>
               }
             </TouchableOpacity>
@@ -805,6 +815,9 @@ const FEED_TABS: { key: FeedTab; label: string; icon: keyof typeof Ionicons.glyp
 ];
 
 const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
+  const C = useThemeColors();
+  const S = useMemo(() => makeStyles(C), [C]);
+
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
   const { data: rawPosts, isLoading, isError, error } = usePosts();
 
@@ -817,20 +830,20 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
 
   return (
     <View>
-      <View style={feedStyles.tabRow}>
+      <View style={S.feed.tabRow}>
         {FEED_TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
-            style={[feedStyles.tab, activeTab === tab.key && feedStyles.tabActive]}
+            style={[S.feed.tab, activeTab === tab.key && S.feed.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
             <Ionicons
               name={tab.icon}
               size={16}
-              color={activeTab === tab.key ? COLORS.green : COLORS.textMuted}
+              color={activeTab === tab.key ? C.green : C.textMuted}
               style={{ marginRight: 6 }}
             />
-            <Text style={[feedStyles.tabText, activeTab === tab.key && feedStyles.tabTextActive]}>
+            <Text style={[S.feed.tabText, activeTab === tab.key && S.feed.tabTextActive]}>
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -839,15 +852,15 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
 
       {isLoading && (
         <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.green} />
-          <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13 }}>Loading posts…</Text>
+          <ActivityIndicator size="large" color={C.green} />
+          <Text style={{ color: C.textMuted, marginTop: 12, fontSize: 13 }}>Loading posts…</Text>
         </View>
       )}
 
       {isError && (
         <View style={{ paddingVertical: 32, alignItems: 'center', paddingHorizontal: 24 }}>
-          <Ionicons name="cloud-offline-outline" size={32} color={COLORS.textMuted} />
-          <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13, textAlign: 'center' }}>
+          <Ionicons name="cloud-offline-outline" size={32} color={C.textMuted} />
+          <Text style={{ color: C.textMuted, marginTop: 12, fontSize: 13, textAlign: 'center' }}>
             Could not load posts.{'\n'}{(error as Error)?.message ?? 'Please try again.'}
           </Text>
         </View>
@@ -855,8 +868,8 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
 
       {!isLoading && !isError && filteredPosts.length === 0 && (
         <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-          <Ionicons name="file-tray-outline" size={32} color={COLORS.textMuted} />
-          <Text style={{ color: COLORS.textMuted, marginTop: 12, fontSize: 13 }}>No posts yet.</Text>
+          <Ionicons name="file-tray-outline" size={32} color={C.textMuted} />
+          <Text style={{ color: C.textMuted, marginTop: 12, fontSize: 13 }}>No posts yet.</Text>
         </View>
       )}
 
@@ -879,6 +892,11 @@ const SECTIONS: { type: SectionKey }[] = [
 ];
 
 export default function DashboardScreen() {
+  const C = useThemeColors();
+  const S = useMemo(() => makeStyles(C), [C]);
+  const isDark = useThemeStore(s => s.isDark);
+  const toggleTheme = useThemeStore(s => s.toggleTheme);
+
   const [userId, setUserId]             = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshKey, setRefreshKey]     = useState(0);
@@ -908,7 +926,7 @@ export default function DashboardScreen() {
         if (settings !== null && settings.show_live_results === false) return null;
         return (
           <>
-            <Text style={[shared.sectionTitle, { marginBottom: 12 }]}>Live Voting</Text>
+            <Text style={[S.shared.sectionTitle, { marginBottom: 12 }]}>Live Voting</Text>
             <LiveVotingBoard />
           </>
         );
@@ -926,27 +944,28 @@ export default function DashboardScreen() {
   };
 
   return (
-    <SafeAreaView style={screenStyles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
-      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={screenStyles.header}>
+    <SafeAreaView style={S.screen.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <View style={S.screen.header}>
           <View>
-            <Text style={screenStyles.headerLogoText}>AnimoQuorum</Text>
-            <Text style={screenStyles.headerSub}>DLSL COMELEC · SY 2025–2026</Text>
+            <Text style={S.screen.headerLogoText}>AnimoQuorum</Text>
+            <Text style={S.screen.headerSub}>DLSL COMELEC · SY 2025–2026</Text>
           </View>
-          <View style={screenStyles.profileHeader}>
+          <View style={S.screen.profileHeader}>
             <TouchableOpacity
               onPress={handleRefresh}
               disabled={isRefreshing}
               style={{ marginRight: 12, padding: 4 }}
             >
               {isRefreshing
-                ? <ActivityIndicator size={18} color={COLORS.green} />
-                : <Ionicons name="refresh-outline" size={20} color={COLORS.green} />
+                ? <ActivityIndicator size={18} color={C.green} />
+                : <Ionicons name="refresh-outline" size={20} color={C.text} />
               }
             </TouchableOpacity>
-            <Ionicons name="person-circle-outline" size={22} color={COLORS.green} />
-            <Text style={screenStyles.profileBtn}>LightOrDark</Text>
+            <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
+              <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.text} />
+            </TouchableOpacity>
           </View>
         </View>
         <FlatList
@@ -955,16 +974,16 @@ export default function DashboardScreen() {
           keyExtractor={item => item.type}
           renderItem={renderSection}
           showsVerticalScrollIndicator={false}
-          style={{ flex: 1, backgroundColor: COLORS.bg }}
+          style={{ flex: 1, backgroundColor: C.bg }}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[screenStyles.scrollContent, { flexGrow: 1, paddingBottom: 0 }]}
+          contentContainerStyle={[S.screen.scrollContent, { flexGrow: 1, paddingBottom: 0 }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor={COLORS.green}
-              colors={[COLORS.green]}
+              tintColor={C.green}
+              colors={[C.green]}
             />
           }
         />
