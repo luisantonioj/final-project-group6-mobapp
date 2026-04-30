@@ -45,22 +45,22 @@ export const lightTheme: ThemeColors = {
 
 // ─── Dark palette ──────────────────────────────────────────────────────────────
 export const darkTheme: ThemeColors = {
-  bg:          '#0A0D0B',
-  surface:     '#101510',
-  surface2:    '#182018',
-  border:      'rgba(27,98,53,0.28)',
+  bg:          '#111113',
+  surface:     '#1C1C20',
+  surface2:    '#26262A',
+  border:      'rgba(255,255,255,0.08)',
   green:       '#1B6235',
-  greenBright: '#4ADE80',
-  greenLight:  'rgba(27,98,53,0.22)',
-  greenDim:    'rgba(27,98,53,0.38)',
-  text:        '#F0FFF0',
-  textSub:     '#A3C5A3',
-  textMuted:   '#6B9B70',
+  greenBright: '#22C55E',
+  greenLight:  'rgba(34,197,94,0.10)',
+  greenDim:    'rgba(34,197,94,0.18)',
+  text:        '#F4F4F5',
+  textSub:     '#A1A1AA',
+  textMuted:   '#71717A',
   red:         '#EF4444',
   redGlow:     'rgba(239,68,68,0.12)',
   amber:       '#F59E0B',
   amberGlow:   'rgba(245,158,11,0.10)',
-  pill:        'rgba(27,98,53,0.18)',
+  pill:        'rgba(34,197,94,0.10)',
 };
 
 // ─── Hook — returns active palette, re-renders on toggle ──────────────────────
