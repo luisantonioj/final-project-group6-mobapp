@@ -1,24 +1,25 @@
 // screens/student/VoteScreen.styles.ts
 import { StyleSheet } from 'react-native';
+import { T } from '../../theme';
 
-// ─── Design tokens ── identical palette to DashboardScreen.styles.ts ─────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
 export const COLORS = {
-  bg:           '#0A0F0A',
-  bgCard:       '#111811',
-  bgElevated:   '#162016',
-  bgModal:      '#0D140D',
-  border:       '#1E2E1E',
-  borderBright: '#2A4A2A',
-  green:        '#22C55E',
-  greenDim:     '#16A34A',
-  greenFaint:   '#14532D',
-  greenGlow:    'rgba(34,197,94,0.12)',
-  text:         '#F0FFF0',
-  textMuted:    '#6B8C6B',
-  textSub:      '#A3C5A3',
-  red:          '#EF4444',
-  redFaint:     'rgba(239,68,68,0.10)',
-  overlay:      'rgba(0,0,0,0.78)',
+  bg:           T.bg,
+  bgCard:       T.surface,
+  bgElevated:   T.surface2,
+  bgModal:      T.surface,
+  border:       T.border,
+  borderBright: 'rgba(27,98,53,0.22)',
+  green:        T.green,
+  greenDim:     T.greenBright,
+  greenFaint:   T.greenLight,
+  greenGlow:    T.greenLight,
+  text:         T.text,
+  textMuted:    T.textMuted,
+  textSub:      T.textSub,
+  red:          T.red,
+  redFaint:     T.redGlow,
+  overlay:      'rgba(0,0,0,0.50)',
 };
 
 export const FONT = {
@@ -77,7 +78,6 @@ export const screenStyles = StyleSheet.create({
     marginTop:     2,
     letterSpacing: 0.3,
   },
-  // "0/8" progress pill — top right of header
   progressPill: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -119,6 +119,11 @@ export const positionCardStyles = StyleSheet.create({
     borderColor:     COLORS.border,
     marginBottom:    SPACE.md,
     overflow:        'hidden',
+    shadowColor:     '#000',
+    shadowOffset:    { width: 0, height: 1 },
+    shadowOpacity:   0.06,
+    shadowRadius:    3,
+    elevation:       2,
   },
   wrapperDone: {
     borderColor: COLORS.green,
@@ -141,7 +146,6 @@ export const positionCardStyles = StyleSheet.create({
     color:     COLORS.textMuted,
     marginTop: 2,
   },
-  // Green checkmark badge when position is voted
   doneBadge: {
     width:           26,
     height:          26,
@@ -176,11 +180,11 @@ export const positionCardStyles = StyleSheet.create({
     gap:     SPACE.xs,
   },
   emptyNote: {
-    fontSize:   FONT.sm,
-    color:      COLORS.textMuted,
-    textAlign:  'center',
+    fontSize:        FONT.sm,
+    color:           COLORS.textMuted,
+    textAlign:       'center',
     paddingVertical: SPACE.base,
-    fontStyle:  'italic',
+    fontStyle:       'italic',
   },
 });
 
@@ -198,9 +202,8 @@ export const candidateRowStyles = StyleSheet.create({
   },
   wrapperSelected: {
     backgroundColor: COLORS.greenFaint,
-    borderColor:     COLORS.green,
+    borderColor:     COLORS.borderBright,
   },
-  // Avatar circle
   avatar: {
     width:           42,
     height:          42,
@@ -222,7 +225,6 @@ export const candidateRowStyles = StyleSheet.create({
   avatarInitialsSelected: {
     color: COLORS.green,
   },
-  // Text
   info: { flex: 1 },
   name: {
     fontSize:   FONT.base,
@@ -234,7 +236,6 @@ export const candidateRowStyles = StyleSheet.create({
     color:     COLORS.textMuted,
     marginTop: 1,
   },
-  // "View" button
   viewBtn: {
     paddingHorizontal: SPACE.sm,
     paddingVertical:   4,
@@ -248,7 +249,6 @@ export const candidateRowStyles = StyleSheet.create({
     color:      COLORS.textSub,
     fontWeight: '600',
   },
-  // Radio button
   radio: {
     width:           20,
     height:          20,
@@ -287,6 +287,11 @@ export const submitStyles = StyleSheet.create({
   wrapperActive: {
     backgroundColor: COLORS.green,
     borderColor:     COLORS.green,
+    shadowColor:     COLORS.green,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.25,
+    shadowRadius:    6,
+    elevation:       4,
   },
   wrapperDisabled: {
     opacity: 0.4,
@@ -322,6 +327,11 @@ export const confirmStyles = StyleSheet.create({
     paddingHorizontal:    SPACE.xl,
     paddingTop:           SPACE.lg,
     paddingBottom:        40,
+    shadowColor:          '#000',
+    shadowOffset:         { width: 0, height: -2 },
+    shadowOpacity:        0.08,
+    shadowRadius:         8,
+    elevation:            8,
   },
   handle: {
     width:           40,
@@ -375,6 +385,11 @@ export const confirmStyles = StyleSheet.create({
     paddingVertical: SPACE.md,
     alignItems:      'center',
     marginBottom:    SPACE.sm,
+    shadowColor:     COLORS.green,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.25,
+    shadowRadius:    6,
+    elevation:       4,
   },
   confirmBtnText: {
     fontSize:   FONT.md,

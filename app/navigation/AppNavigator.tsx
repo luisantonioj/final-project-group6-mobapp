@@ -6,11 +6,6 @@
  *   Vote       — Ballot with candidate profile modals
  *   Miting     — Reddit-style live Q&A upvote board
  *   Profile    — Student profile + sign out
- *
- * TO ADD A SCREEN PUSH ON TOP OF A TAB (e.g. post detail):
- *   Wrap the relevant tab in a createNativeStackNavigator instead of
- *   pointing it directly at the screen component. See StudentNavigator.tsx
- *   in the previous version for reference.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import React from 'react';
@@ -20,6 +15,7 @@ import { DashboardScreen } from '../screens/student/DashboardScreen';
 import { VoteScreen } from '../screens/student/VoteScreen';
 import { MitingScreen } from '../screens/student/MitingScreen';
 import { ProfileScreen } from '../screens/student/ProfileScreen';
+import { T } from '../theme';
 
 import type { AppTabParamList } from './types';
 
@@ -29,11 +25,11 @@ export function AppNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor:   '#0F6E56',
-        tabBarInactiveTintColor: '#4B6B4B',
+        tabBarActiveTintColor:   T.green,
+        tabBarInactiveTintColor: T.textMuted,
         tabBarStyle: {
-          backgroundColor: '#111811',
-          borderTopColor:  '#1E2E1E',
+          backgroundColor: T.surface,
+          borderTopColor:  T.border,
           borderTopWidth:  1,
         },
         headerShown: false,

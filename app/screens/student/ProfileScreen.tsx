@@ -25,20 +25,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons }     from '@expo/vector-icons';
 import { supabase }     from '../../utils/supabase';
 import { useAuthStore } from '../../stores/authStore';
+import { T }            from '../../theme';
 
 const C = {
-  bg:          '#0A0F0A',
-  surface:     '#111811',
-  surface2:    '#162016',
-  border:      '#1E2E1E',
-  green:       '#0F6E56',
-  greenBright: '#22C55E',
-  greenGlow:   'rgba(34,197,94,0.10)',
-  text:        '#F0FFF0',
-  textSub:     '#A3C5A3',
-  textMuted:   '#4B6B4B',
-  error:       '#EF4444',
-  errorGlow:   'rgba(239,68,68,0.10)',
+  bg:          T.bg,
+  surface:     T.surface,
+  surface2:    T.surface2,
+  border:      T.border,
+  green:       T.green,
+  greenBright: T.greenBright,
+  greenGlow:   T.greenLight,
+  text:        T.text,
+  textSub:     T.textSub,
+  textMuted:   T.textMuted,
+  error:       T.red,
+  errorGlow:   T.redGlow,
 };
 
 export function ProfileScreen() {
@@ -114,7 +115,7 @@ export function ProfileScreen() {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.center}>
-          <ActivityIndicator size="large" color={C.greenBright} />
+          <ActivityIndicator size="large" color={C.green} />
         </View>
       </SafeAreaView>
     );
@@ -122,7 +123,7 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
 
       <ScrollView
         contentContainerStyle={s.scroll}
@@ -133,9 +134,6 @@ export function ProfileScreen() {
           <View style={s.avatarCircle}>
             <Text style={s.avatarText}>{initials}</Text>
           </View>
-          {/* SUGGESTION: Add profile photo upload here using expo-image-picker:
-              const result = await ImagePicker.launchImageLibraryAsync({ ...options });
-              Upload to Supabase Storage, then update Users.profile_photo_url */}
         </View>
 
         {/* ── Name ── */}
@@ -181,7 +179,7 @@ export function ProfileScreen() {
 
         {/* ── Role badge ── */}
         <View style={s.roleBadge}>
-          <Ionicons name="shield-checkmark-outline" size={13} color={C.greenBright} style={{ marginRight: 5 }} />
+          <Ionicons name="shield-checkmark-outline" size={13} color={C.green} style={{ marginRight: 5 }} />
           <Text style={s.roleBadgeText}>Registered Voter</Text>
         </View>
 
@@ -193,7 +191,7 @@ export function ProfileScreen() {
             icon="checkmark-circle-outline"
             label="Account Status"
             value={userProfile?.is_active ? 'Active' : 'Inactive'}
-            valueColor={userProfile?.is_active ? C.greenBright : C.error}
+            valueColor={userProfile?.is_active ? C.green : C.error}
           />
         </View>
 
@@ -242,16 +240,22 @@ const s = StyleSheet.create({
 
   // Avatar
   avatarWrap:   { marginBottom: 16 },
-  avatarCircle: { width: 90, height: 90, borderRadius: 45,
-                  backgroundColor: C.surface2, borderWidth: 2, borderColor: C.greenBright,
-                  alignItems: 'center', justifyContent: 'center' },
-  avatarText:   { fontSize: 32, fontWeight: '800', color: C.greenBright },
+  avatarCircle: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: C.surface2, borderWidth: 2, borderColor: C.green,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: C.green, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 3,
+  },
+  avatarText:   { fontSize: 32, fontWeight: '800', color: C.green },
 
   // Name
   nameRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   name:      { fontSize: 22, fontWeight: '800', color: C.text },
-  editIcon:  { padding: 5, backgroundColor: C.surface2, borderRadius: 20,
-               borderWidth: 1, borderColor: C.border },
+  editIcon:  {
+    padding: 5, backgroundColor: C.surface2, borderRadius: 20,
+    borderWidth: 1, borderColor: C.border,
+  },
   email:     { fontSize: 13, color: C.textMuted, marginBottom: 14 },
 
   // Role badge
@@ -259,14 +263,14 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: C.greenGlow, borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 6, marginBottom: 28,
-    borderWidth: 1, borderColor: C.greenBright + '44',
+    borderWidth: 1, borderColor: C.green + '44',
   },
-  roleBadgeText: { fontSize: 12, fontWeight: '700', color: C.greenBright },
+  roleBadgeText: { fontSize: 12, fontWeight: '700', color: C.green },
 
   // Edit form
   editWrap: { width: '100%', marginBottom: 4 },
   editInput: {
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.greenBright + '77',
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.green + '77',
     borderRadius: 12, color: C.text, fontSize: 16,
     paddingHorizontal: 14, paddingVertical: 12,
     textAlign: 'center', fontWeight: '700',
@@ -276,8 +280,12 @@ const s = StyleSheet.create({
   cancelEditBtn:{ flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 10,
                   paddingVertical: 10, alignItems: 'center' },
   cancelEditText:{ color: C.textMuted, fontWeight: '600' },
-  saveBtn:      { flex: 1, backgroundColor: C.green, borderRadius: 10,
-                  paddingVertical: 10, alignItems: 'center' },
+  saveBtn:      {
+    flex: 1, backgroundColor: C.green, borderRadius: 10,
+    paddingVertical: 10, alignItems: 'center',
+    shadowColor: C.green, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 4, elevation: 3,
+  },
   saveBtnText:  { color: '#fff', fontWeight: '700' },
 
   // Info section
@@ -286,6 +294,8 @@ const s = StyleSheet.create({
     backgroundColor: C.surface, borderRadius: 14,
     borderWidth: 1, borderColor: C.border,
     marginBottom: 24, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
   },
   infoRow: {
     flexDirection: 'row', alignItems: 'center',

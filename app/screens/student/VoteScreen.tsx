@@ -54,27 +54,28 @@ import {
   notifyVoteSubmitted,
 } from '../../notifications/notificationService';
 
+import { T } from '../../theme';
+
 // ─── Design tokens ─────────────────────────────────────────────────────────────
-// Matches the dark-green palette used across the project
 const C = {
-  bg:           '#0A0F0A',
-  surface:      '#111811',
-  surface2:     '#162016',
-  border:       '#1E2E1E',
-  borderBright: '#2A4A2A',
-  green:        '#0F6E56',
-  greenBright:  '#22C55E',
-  greenGlow:    'rgba(34,197,94,0.10)',
-  greenFaint:   '#14532D',
-  amber:        '#F59E0B',
-  amberFaint:   'rgba(245,158,11,0.12)',
-  amberBorder:  'rgba(245,158,11,0.35)',
-  text:         '#F0FFF0',
-  textSub:      '#A3C5A3',
-  textMuted:    '#4B6B4B',
-  error:        '#EF4444',
-  errorFaint:   'rgba(239,68,68,0.12)',
-  errorBorder:  'rgba(239,68,68,0.35)',
+  bg:           T.bg,
+  surface:      T.surface,
+  surface2:     T.surface2,
+  border:       T.border,
+  borderBright: 'rgba(27,98,53,0.22)',
+  green:        T.green,
+  greenBright:  T.greenBright,
+  greenGlow:    T.greenLight,
+  greenFaint:   T.greenLight,
+  amber:        T.amber,
+  amberFaint:   T.amberGlow,
+  amberBorder:  'rgba(217,119,6,0.35)',
+  text:         T.text,
+  textSub:      T.textSub,
+  textMuted:    T.textMuted,
+  error:        T.red,
+  errorFaint:   T.redGlow,
+  errorBorder:  'rgba(220,38,38,0.35)',
 };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ const PositionCard: React.FC<{
 
         {isDone ? (
           <View style={s.doneBadge}>
-            <Ionicons name="checkmark-circle" size={12} color={C.greenBright} />
+            <Ionicons name="checkmark-circle" size={12} color={C.green} />
             <Text style={s.doneBadgeText}> Selected</Text>
           </View>
         ) : (
@@ -249,7 +250,7 @@ const PositionCard: React.FC<{
           <Ionicons
             name="checkmark-circle"
             size={14}
-            color={C.greenBright}
+            color={C.green}
           />
           <Text style={s.selectionName} numberOfLines={1}>
             {selectedCandidate.name}
@@ -300,7 +301,7 @@ const ConfirmModal: React.FC<{
             <Ionicons
               name="shield-checkmark-outline"
               size={22}
-              color={C.greenBright}
+              color={C.green}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -381,7 +382,7 @@ const SetupScreen: React.FC<{
           <Ionicons
             name="checkmark-done-circle-outline"
             size={36}
-            color={C.greenBright}
+            color={C.green}
           />
         </View>
         <Text style={s.setupTitle}>Cast Your Vote</Text>
@@ -504,7 +505,7 @@ const SetupScreen: React.FC<{
 const SuccessScreen: React.FC = () => (
   <View style={s.successContainer}>
     <View style={s.successIconWrap}>
-      <Ionicons name="checkmark-circle" size={80} color={C.greenBright} />
+      <Ionicons name="checkmark-circle" size={80} color={C.green} />
     </View>
     <Text style={s.successTitle}>Vote Submitted!</Text>
     <Text style={s.successBody}>
@@ -549,18 +550,12 @@ export function VoteScreen() {
   }, []);
 
   // ── Ballot data ───────────────────────────────────────────────────────────
-  // getCandidatesForBallot already:
-  //   • Filters out disabled positions
-  //   • Filters out positions with zero candidates
-  //   • Sorts: Executive Council first, then department positions
   const ballotPositions = useMemo((): BallotPosition[] => {
     if (!selectedDept) return [];
     return getCandidatesForBallot(selectedDept);
-    // disabledPositions in deps so we re-derive when admin toggles positions
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDept, getCandidatesForBallot, disabledPositions]);
 
-  // Split into two visual sections
   const execPositions = useMemo(
     () => ballotPositions.filter((bp) => bp.department === 'Executive Council'),
     [ballotPositions],
@@ -609,7 +604,7 @@ export function VoteScreen() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleBegin = useCallback(() => {
     if (!selectedDept || !consented) return;
-    reset(); // clear leftover selections from any previous session
+    reset();
     setPhase('ballot');
   }, [selectedDept, consented, reset]);
 
@@ -639,7 +634,6 @@ export function VoteScreen() {
 
   const handleConfirmSubmit = useCallback(async () => {
     setConfirmVisible(false);
-    // No backend — simulate a brief processing delay
     await new Promise((res) => setTimeout(res, 600));
     await notifyVoteSubmitted();
     reset();
@@ -720,7 +714,7 @@ export function VoteScreen() {
           <Text
             style={[
               s.progressText,
-              allSelected && { color: C.greenBright },
+              allSelected && { color: C.green },
             ]}
           >
             {selectedCount}/{totalPositions}
@@ -739,7 +733,6 @@ export function VoteScreen() {
         showsVerticalScrollIndicator={false}
       >
         {ballotPositions.length === 0 ? (
-          /* Empty state — no active positions for this department */
           <View style={s.emptyBallot}>
             <Ionicons
               name="clipboard-outline"
@@ -874,13 +867,13 @@ const s = StyleSheet.create({
   },
   progressPillDone: {
     backgroundColor: C.greenGlow,
-    borderColor:     C.greenBright + '55',
+    borderColor:     C.green + '55',
   },
   progressText: { fontSize: 12, fontWeight: '700', color: C.textMuted },
 
   // ── Progress bar ─────────────────────────────────────────────────────────
   progressBarTrack: { height: 3, backgroundColor: C.border },
-  progressBarFill:  { height: 3, backgroundColor: C.greenBright },
+  progressBarFill:  { height: 3, backgroundColor: C.green },
 
   // ── Ballot list ──────────────────────────────────────────────────────────
   list: {
@@ -894,7 +887,7 @@ const s = StyleSheet.create({
     fontSize:      10,
     fontWeight:    '700',
     letterSpacing: 2,
-    color:         C.greenBright,
+    color:         C.green,
     textTransform: 'uppercase',
     marginBottom:  8,
     marginTop:     4,
@@ -908,8 +901,13 @@ const s = StyleSheet.create({
     borderColor:     C.border,
     marginBottom:    14,
     overflow:        'hidden',
+    shadowColor:     '#000',
+    shadowOffset:    { width: 0, height: 1 },
+    shadowOpacity:   0.06,
+    shadowRadius:    3,
+    elevation:       2,
   },
-  positionCardDone: { borderColor: C.greenBright + '55' },
+  positionCardDone: { borderColor: C.green + '55' },
 
   positionHeader: {
     flexDirection:      'row',
@@ -931,9 +929,9 @@ const s = StyleSheet.create({
     paddingHorizontal:  9,
     paddingVertical:    4,
     borderWidth:        1,
-    borderColor:        C.greenBright + '44',
+    borderColor:        C.green + '44',
   },
-  doneBadgeText: { fontSize: 11, fontWeight: '700', color: C.greenBright },
+  doneBadgeText: { fontSize: 11, fontWeight: '700', color: C.green },
 
   pendingBadge: {
     backgroundColor:   C.surface2,
@@ -955,7 +953,7 @@ const s = StyleSheet.create({
     borderBottomWidth:  1,
     borderBottomColor:  C.borderBright,
   },
-  selectionName:  { fontSize: 13, fontWeight: '700', color: C.greenBright, flex: 1 },
+  selectionName:  { fontSize: 13, fontWeight: '700', color: C.green, flex: 1 },
   selectionParty: { fontSize: 12, color: C.textSub },
 
   candidateList: { padding: 10, gap: 8 },
@@ -973,7 +971,7 @@ const s = StyleSheet.create({
   },
   candidateRowSelected: {
     backgroundColor: C.greenGlow,
-    borderColor:     C.greenBright + '44',
+    borderColor:     C.green + '44',
   },
 
   candidateAvatar: {
@@ -987,14 +985,14 @@ const s = StyleSheet.create({
     justifyContent:  'center',
     overflow:        'hidden',
   },
-  candidateAvatarSelected:     { borderColor: C.greenBright },
+  candidateAvatarSelected:     { borderColor: C.green },
   candidateAvatarImage:        { width: 42, height: 42, borderRadius: 21 },
   candidateAvatarText:         { fontSize: 14, fontWeight: '800', color: C.textSub },
-  candidateAvatarTextSelected: { color: C.greenBright },
+  candidateAvatarTextSelected: { color: C.green },
 
   candidateInfo:         { flex: 1 },
   candidateName:         { fontSize: 13, fontWeight: '600', color: C.text, marginBottom: 2 },
-  candidateNameSelected: { color: C.greenBright },
+  candidateNameSelected: { color: C.green },
   candidateParty:        { fontSize: 11, color: C.textMuted },
 
   viewProfileBtn: {
@@ -1016,12 +1014,12 @@ const s = StyleSheet.create({
     alignItems:     'center',
     justifyContent: 'center',
   },
-  radioSelected: { borderColor: C.greenBright },
+  radioSelected: { borderColor: C.green },
   radioDot: {
     width:           10,
     height:          10,
     borderRadius:    5,
-    backgroundColor: C.greenBright,
+    backgroundColor: C.green,
   },
 
   // ── Empty ballot ──────────────────────────────────────────────────────────
@@ -1058,11 +1056,18 @@ const s = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
     gap:             8,
+    shadowColor:     C.green,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.25,
+    shadowRadius:    6,
+    elevation:       4,
   },
   submitBtnDisabled: {
     backgroundColor: C.surface2,
     borderWidth:     1,
     borderColor:     C.border,
+    shadowOpacity:   0,
+    elevation:       0,
   },
   submitBtnText:         { color: '#fff', fontSize: 15, fontWeight: '700' },
   submitBtnTextDisabled: { color: C.textMuted },
@@ -1098,7 +1103,7 @@ const s = StyleSheet.create({
   // ── Confirm modal ─────────────────────────────────────────────────────────
   modalOverlay: {
     flex:            1,
-    backgroundColor: 'rgba(0,0,0,0.78)',
+    backgroundColor: 'rgba(0,0,0,0.50)',
     justifyContent:  'flex-end',
   },
   modalSheet: {
@@ -1107,6 +1112,11 @@ const s = StyleSheet.create({
     borderTopRightRadius: 24,
     padding:              24,
     maxHeight:            '82%',
+    shadowColor:          '#000',
+    shadowOffset:         { width: 0, height: -2 },
+    shadowOpacity:        0.08,
+    shadowRadius:         8,
+    elevation:            8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1140,7 +1150,7 @@ const s = StyleSheet.create({
     width:           8,
     height:          8,
     borderRadius:    4,
-    backgroundColor: C.greenBright,
+    backgroundColor: C.green,
     marginTop:       6,
     flexShrink:      0,
   },
@@ -1175,6 +1185,11 @@ const s = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
     gap:             6,
+    shadowColor:     C.green,
+    shadowOffset:    { width: 0, height: 2 },
+    shadowOpacity:   0.25,
+    shadowRadius:    4,
+    elevation:       3,
   },
   modalSubmitText: { fontSize: 14, fontWeight: '800', color: '#fff' },
 
@@ -1228,10 +1243,10 @@ const s = StyleSheet.create({
   },
   deptChipActive: {
     backgroundColor: C.greenFaint,
-    borderColor:     C.greenBright,
+    borderColor:     C.green,
   },
   deptChipText:       { fontSize: 13, fontWeight: '600', color: C.textMuted },
-  deptChipTextActive: { color: C.greenBright },
+  deptChipTextActive: { color: C.green, fontWeight: '700' },
 
   consentRow: {
     flexDirection:   'row',
@@ -1255,9 +1270,9 @@ const s = StyleSheet.create({
     marginTop:       1,
     flexShrink:      0,
   },
-  checkboxActive: { backgroundColor: C.green, borderColor: C.greenBright },
+  checkboxActive: { backgroundColor: C.green, borderColor: C.green },
   consentText:    { flex: 1, fontSize: 13, color: C.textSub, lineHeight: 20 },
-  consentHighlight: { color: C.greenBright, fontWeight: '700' },
+  consentHighlight: { color: C.green, fontWeight: '700' },
 
   warnBox: {
     flexDirection:   'row',
@@ -1281,11 +1296,18 @@ const s = StyleSheet.create({
     justifyContent:  'center',
     gap:             8,
     marginTop:       8,
+    shadowColor:     C.green,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.25,
+    shadowRadius:    6,
+    elevation:       4,
   },
   beginBtnDisabled: {
     backgroundColor: C.surface2,
     borderWidth:     1,
     borderColor:     C.border,
+    shadowOpacity:   0,
+    elevation:       0,
   },
   beginBtnText:         { color: '#fff', fontSize: 16, fontWeight: '800' },
   beginBtnTextDisabled: { color: C.textMuted },

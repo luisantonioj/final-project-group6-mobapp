@@ -38,22 +38,23 @@ import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../../ho
 import { useAuthStore }      from '../../stores/authStore';
 import { supabase }          from '../../utils/supabase';
 import { notifyAdminAlert }  from '../../notifications/notificationService';
+import { T }                 from '../../theme';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:          '#0A0F0A',
-  surface:     '#111811',
-  surface2:    '#162016',
-  border:      '#1E2E1E',
-  green:       '#0F6E56',
-  greenBright: '#22C55E',
-  greenGlow:   'rgba(34,197,94,0.10)',
-  amber:       '#F59E0B',
-  amberGlow:   'rgba(245,158,11,0.08)',
-  text:        '#F0FFF0',
-  textSub:     '#A3C5A3',
-  textMuted:   '#4B6B4B',
-  red:         '#EF4444',
+  bg:          T.bg,
+  surface:     T.surface,
+  surface2:    T.surface2,
+  border:      T.border,
+  green:       T.green,
+  greenBright: T.greenBright,
+  greenGlow:   T.greenLight,
+  amber:       T.amber,
+  amberGlow:   T.amberGlow,
+  text:        T.text,
+  textSub:     T.textSub,
+  textMuted:   T.textMuted,
+  red:         T.red,
 };
 
 // MitingQuestion row shape
@@ -101,10 +102,10 @@ function QuestionCard({
           <Ionicons
             name={hasUpvoted ? 'arrow-up-circle' : 'arrow-up-circle-outline'}
             size={22}
-            color={hasUpvoted ? C.greenBright : C.textMuted}
+            color={hasUpvoted ? C.green : C.textMuted}
           />
         </Animated.View>
-        <Text style={[s.upvoteCount, hasUpvoted && { color: C.greenBright }]}>
+        <Text style={[s.upvoteCount, hasUpvoted && { color: C.green }]}>
           {q.upvote_count}
         </Text>
       </TouchableOpacity>
@@ -242,7 +243,7 @@ export function MitingScreen() {
   if (!isMitingActive) {
     return (
       <SafeAreaView style={s.safe}>
-        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
         <View style={s.center}>
           <View style={s.inactiveIcon}>
             <Ionicons name="mic-off-outline" size={40} color={C.textMuted} />
@@ -259,7 +260,7 @@ export function MitingScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -284,7 +285,7 @@ export function MitingScreen() {
         {/* ── Questions list ── */}
         {isLoading ? (
           <View style={s.center}>
-            <ActivityIndicator size="large" color={C.greenBright} />
+            <ActivityIndicator size="large" color={C.green} />
           </View>
         ) : (
           <FlatList
@@ -316,7 +317,7 @@ export function MitingScreen() {
         {/* ── Submission toast ── */}
         {showToast && (
           <View style={s.toast}>
-            <Ionicons name="checkmark-circle" size={16} color={C.greenBright} />
+            <Ionicons name="checkmark-circle" size={16} color={C.green} />
             <Text style={s.toastText}>Question submitted! Waiting for approval.</Text>
           </View>
         )}
@@ -360,12 +361,13 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
 
   // Inactive state
-  inactiveIcon:  { width: 80, height: 80, borderRadius: 40, backgroundColor: C.surface2,
-                   alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-                   borderWidth: 1, borderColor: C.border },
+  inactiveIcon:  {
+    width: 80, height: 80, borderRadius: 40, backgroundColor: C.surface2,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+    borderWidth: 1, borderColor: C.border,
+  },
   inactiveTitle: { fontSize: 20, fontWeight: '800', color: C.text },
-  inactiveBody:  { fontSize: 14, color: C.textMuted, textAlign: 'center', lineHeight: 22,
-                   marginTop: 8 },
+  inactiveBody:  { fontSize: 14, color: C.textMuted, textAlign: 'center', lineHeight: 22, marginTop: 8 },
 
   // Header
   header: {
@@ -375,7 +377,7 @@ const s = StyleSheet.create({
   },
   livePill: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 20,
+    backgroundColor: 'rgba(220,38,38,0.10)', borderRadius: 20,
     paddingHorizontal: 8, paddingVertical: 4, gap: 4,
   },
   liveDot:      { width: 6, height: 6, borderRadius: 3, backgroundColor: C.red },
@@ -403,9 +405,11 @@ const s = StyleSheet.create({
     backgroundColor: C.surface, borderRadius: 14,
     borderWidth: 1, borderColor: C.border,
     padding: 14, marginBottom: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 2, elevation: 1,
   },
   questionCardTop: {
-    borderColor: C.greenBright + '55',
+    borderColor: C.green + '55',
     backgroundColor: C.surface2,
   },
 
@@ -428,7 +432,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 9, paddingVertical: 3,
     marginBottom: 6,
   },
-  topBadgeText: { fontSize: 11, fontWeight: '700', color: C.greenBright },
+  topBadgeText: { fontSize: 11, fontWeight: '700', color: C.green },
 
   questionText:   { fontSize: 14, color: C.text, lineHeight: 21, marginBottom: 6 },
   questionFooter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -436,18 +440,18 @@ const s = StyleSheet.create({
 
   // "You" badge
   youBadge: {
-    backgroundColor: 'rgba(15,110,86,0.20)', borderRadius: 8,
+    backgroundColor: 'rgba(27,98,53,0.15)', borderRadius: 8,
     borderWidth: 1, borderColor: C.green,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  youBadgeText: { fontSize: 10, fontWeight: '700', color: C.greenBright },
+  youBadgeText: { fontSize: 10, fontWeight: '700', color: C.green },
 
   // Toast
   toast: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: 14, marginBottom: 8,
     backgroundColor: C.surface2, borderRadius: 12,
-    borderWidth: 1, borderColor: C.greenBright + '44',
+    borderWidth: 1, borderColor: C.green + '44',
     paddingHorizontal: 14, paddingVertical: 10,
   },
   toastText: { fontSize: 13, color: C.textSub, flex: 1 },
@@ -472,6 +476,9 @@ const s = StyleSheet.create({
     backgroundColor: C.green,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 2,
+    shadowColor: C.green, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 4, elevation: 3,
   },
-  sendBtnDisabled: { backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border },
+  sendBtnDisabled: { backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border,
+                     shadowOpacity: 0 },
 });

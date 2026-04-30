@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { styles } from './AdminResultsScreen.styles';
+import { T } from '../../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -373,7 +374,7 @@ export function AdminResultsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F1117" />
+      <StatusBar barStyle="dark-content" backgroundColor={T.bg} />
 
       {/* ── Header ── */}
       <View style={styles.header}>
