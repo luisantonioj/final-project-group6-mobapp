@@ -6,6 +6,7 @@
  *   - Filterable list of all posts (All / Notices / Polls tabs)
  *   - Create / Edit via bottom sheet modal (title + content + type + poll options)
  *   - Delete with confirmation alert
+ *   - Miting tab: Go Live toggle, Live Feed preview, Pending approval queue
  *
  * BACKEND:
  *   Reads:   usePosts()       → app/hooks/usePosts.ts
@@ -18,44 +19,13 @@
  *
  * HOOKS TO ADD (if not yet in usePosts.ts):
  * ─────────────────────────────────────────────────────────────────────────────
- *   export function useCreatePost() {
- *     const qc = useQueryClient();
- *     return useMutation({
- *       mutationFn: async (post: { type: string; title: string; content: string }) => {
- *         const { data, error } = await supabase.from('Posts').insert([post]).select().single();
- *         if (error) throw error;
- *         return data;
- *       },
- *       onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
- *     });
- *   }
- *
- *   export function useUpdatePost() {
- *     const qc = useQueryClient();
- *     return useMutation({
- *       mutationFn: async ({ id, ...updates }: { id: string; type: string; title: string; content: string }) => {
- *         const { data, error } = await supabase.from('Posts').update(updates).eq('id', id).select().single();
- *         if (error) throw error;
- *         return data;
- *       },
- *       onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
- *     });
- *   }
- *
- *   export function useDeletePost() {
- *     const qc = useQueryClient();
- *     return useMutation({
- *       mutationFn: async (id: string) => {
- *         const { error } = await supabase.from('Posts').delete().eq('id', id);
- *         if (error) throw error;
- *       },
- *       onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
- *     });
- *   }
+ *   export function useCreatePost() { ... }
+ *   export function useUpdatePost() { ... }
+ *   export function useDeletePost() { ... }
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -73,6 +43,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { usePosts, useCreatePost, useUpdatePost, useDeletePost } from '../../hooks/usePosts';
+import { useSettings, useUpdateSettings } from '../../hooks/useSettings';
 import { supabase } from '../../utils/supabase';
 import { C, s } from './AdminDashboardScreen.styles';
 
@@ -96,7 +67,17 @@ interface RawPost {
   PollOptions?: PollOption[];
 }
 
-type FeedTab = 'all' | 'announcement' | 'poll';
+interface MitingQuestion {
+  id: string;
+  student_id: string;
+  question_text: string;
+  upvote_count: number;
+  is_approved: boolean;
+  created_at: string;
+}
+
+type FeedTab = 'all' | 'announcement' | 'poll' | 'miting';
+type MitingSubTab = 'live' | 'pending';
 
 interface ModalState {
   visible: boolean;
@@ -104,12 +85,11 @@ interface ModalState {
   post: RawPost | null;
 }
 
-// Payload passed from PostModal → handleSave
 interface SavePayload {
   type: 'announcement' | 'poll';
   title: string;
   content: string;
-  pollOptions: string[]; // only used when type === 'poll'
+  pollOptions: string[];
 }
 
 // =============================================================================
@@ -127,10 +107,6 @@ function timeAgo(iso: string): string {
   return 'Just now';
 }
 
-/**
- * Writes poll options for a post.
- * Deletes all existing options first so editing is always a clean replace.
- */
 async function savePollOptions(postId: string, options: string[]): Promise<void> {
   const trimmed = options.map(o => o.trim()).filter(Boolean);
   if (trimmed.length === 0) return;
@@ -250,8 +226,6 @@ const PostRow: React.FC<{
 
 // =============================================================================
 // CREATE / EDIT MODAL
-// pollOptions are now included in the save payload so the parent can write
-// them to the PollOptions table after upserting the post row.
 // =============================================================================
 
 const EMPTY_FORM = {
@@ -330,7 +304,6 @@ const PostModal: React.FC<{
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Type toggle */}
             <Text style={s.fieldLabel}>Post Type</Text>
             <View style={s.typeToggle}>
               {(['announcement', 'poll'] as const).map(t => (
@@ -352,7 +325,6 @@ const PostModal: React.FC<{
               ))}
             </View>
 
-            {/* Title */}
             <Text style={s.fieldLabel}>Title</Text>
             <TextInput
               style={s.input}
@@ -362,7 +334,6 @@ const PostModal: React.FC<{
               onChangeText={v => setForm(f => ({ ...f, title: v }))}
             />
 
-            {/* Announcement content */}
             {form.type === 'announcement' && (
               <>
                 <Text style={s.fieldLabel}>Content</Text>
@@ -379,7 +350,6 @@ const PostModal: React.FC<{
               </>
             )}
 
-            {/* Poll options — fully wired to PollOptions table on save */}
             {form.type === 'poll' && (
               <>
                 <Text style={s.fieldLabel}>Poll Options</Text>
@@ -427,6 +397,316 @@ const PostModal: React.FC<{
 };
 
 // =============================================================================
+// MITING CONTROL PANEL
+// =============================================================================
+
+const MitingControlPanel: React.FC<{
+  isActive: boolean;
+  isLoading: boolean;
+  isToggling: boolean;
+  onToggle: () => void;
+}> = ({ isActive, isLoading, isToggling, onToggle }) => (
+  <View style={mStyles.card}>
+    <View style={mStyles.statusRow}>
+      <View style={[mStyles.dot, { backgroundColor: isActive ? C.green : C.textMuted }]} />
+      <Text style={[mStyles.statusText, { color: isActive ? C.green : C.textMuted }]}>
+        {isLoading ? 'Loading…' : isActive ? 'LIVE' : 'INACTIVE'}
+      </Text>
+    </View>
+
+    <Text style={mStyles.title}>Miting de Avance</Text>
+    <Text style={mStyles.desc}>
+      {isActive
+        ? 'The live Q&A session is currently open. Students can submit and upvote questions.'
+        : 'The live Q&A session is currently closed. Tap the button below to open it for students.'}
+    </Text>
+
+    <TouchableOpacity
+      style={[
+        mStyles.toggleBtn,
+        isActive ? mStyles.toggleBtnEnd : mStyles.toggleBtnLive,
+        (isLoading || isToggling) && { opacity: 0.5 },
+      ]}
+      onPress={onToggle}
+      disabled={isLoading || isToggling}
+      activeOpacity={0.8}
+    >
+      {isToggling ? (
+        <ActivityIndicator size={16} color="#fff" />
+      ) : (
+        <Ionicons
+          name={isActive ? 'mic-off-outline' : 'mic-outline'}
+          size={18}
+          color="#fff"
+          style={{ marginRight: 8 }}
+        />
+      )}
+      <Text style={mStyles.toggleBtnText}>
+        {isToggling ? 'Updating…' : isActive ? 'End Session' : 'Go Live'}
+      </Text>
+    </TouchableOpacity>
+
+    <View style={mStyles.infoRow}>
+      <Ionicons name="information-circle-outline" size={14} color={C.textMuted} />
+      <Text style={mStyles.infoText}>
+        Students receive a notification the moment you go live.
+      </Text>
+    </View>
+  </View>
+);
+
+// =============================================================================
+// MITING — LIVE FEED CARD (read-only preview + delete)
+// =============================================================================
+
+const LiveQuestionCard: React.FC<{
+  q: MitingQuestion;
+  index: number;
+  total: number;
+  onDelete: (id: string) => void;
+  isDeleting: boolean;
+}> = ({ q, index, total, onDelete, isDeleting }) => {
+  const isTop = index === 0 && total > 1;
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Remove from Live Feed?',
+      'This will permanently delete the question for all students.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDelete(q.id) },
+      ],
+    );
+  };
+
+  return (
+    <View style={[mStyles.qCard, isTop && mStyles.qCardTop]}>
+      <View style={mStyles.upvoteCol}>
+        <Ionicons name="arrow-up-circle-outline" size={20} color={C.textMuted} />
+        <Text style={mStyles.upvoteCount}>{q.upvote_count}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        {isTop && (
+          <View style={mStyles.topBadge}>
+            <Text style={mStyles.topBadgeText}>🔥 Top Question</Text>
+          </View>
+        )}
+        <Text style={mStyles.qText}>{q.question_text}</Text>
+        <View style={mStyles.qFooter}>
+          <Text style={mStyles.qMeta}>{timeAgo(q.created_at)}</Text>
+          <TouchableOpacity
+            style={[mStyles.deleteBtn, isDeleting && { opacity: 0.5 }]}
+            onPress={handleDelete}
+            disabled={isDeleting}
+            activeOpacity={0.8}
+          >
+            {isDeleting
+              ? <ActivityIndicator size={12} color={C.red} />
+              : <Ionicons name="trash-outline" size={13} color={C.red} />
+            }
+            <Text style={mStyles.deleteBtnText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// =============================================================================
+// MITING — PENDING APPROVAL CARD
+// =============================================================================
+
+const PendingQuestionCard: React.FC<{
+  q: MitingQuestion;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  isApproving: boolean;
+  isRejecting: boolean;
+}> = ({ q, onApprove, onReject, isApproving, isRejecting }) => (
+  <View style={mStyles.qCard}>
+    <View style={{ flex: 1 }}>
+      <Text style={mStyles.qText}>{q.question_text}</Text>
+      <Text style={mStyles.qMeta}>{timeAgo(q.created_at)}</Text>
+      <View style={mStyles.approvalRow}>
+        <TouchableOpacity
+          style={[mStyles.approveBtn, (isApproving || isRejecting) && { opacity: 0.5 }]}
+          onPress={() => onApprove(q.id)}
+          disabled={isApproving || isRejecting}
+          activeOpacity={0.8}
+        >
+          {isApproving
+            ? <ActivityIndicator size={12} color="#fff" />
+            : <Ionicons name="checkmark" size={14} color="#fff" style={{ marginRight: 5 }} />
+          }
+          <Text style={mStyles.approveBtnText}>Approve</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[mStyles.rejectBtn, (isApproving || isRejecting) && { opacity: 0.5 }]}
+          onPress={() => onReject(q.id)}
+          disabled={isApproving || isRejecting}
+          activeOpacity={0.8}
+        >
+          {isRejecting
+            ? <ActivityIndicator size={12} color={C.red} />
+            : <Ionicons name="close" size={14} color={C.red} style={{ marginRight: 5 }} />
+          }
+          <Text style={mStyles.rejectBtnText}>Reject</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+);
+
+// =============================================================================
+// MITING STYLES
+// =============================================================================
+
+const mStyles = {
+  // Control panel card
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 20,
+    marginBottom: 12,
+  } as const,
+  statusRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginBottom: 12,
+  },
+  dot:        { width: 8, height: 8, borderRadius: 4 } as const,
+  statusText: { fontSize: 11, fontWeight: '800' as const, letterSpacing: 1.2 },
+  title:      { fontSize: 20, fontWeight: '800' as const, color: C.text, marginBottom: 8 },
+  desc:       { fontSize: 13, color: C.textSub, lineHeight: 20, marginBottom: 20 },
+  toggleBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    borderRadius: 14,
+    paddingVertical: 15,
+    marginBottom: 14,
+  },
+  toggleBtnLive: { backgroundColor: C.green } as const,
+  toggleBtnEnd:  { backgroundColor: '#EF4444' } as const,
+  toggleBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#fff' },
+  infoRow:  { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  infoText: { fontSize: 11, color: C.textMuted, flex: 1, lineHeight: 16 },
+
+  // Sub-tabs
+  subTabRow: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  subTab: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.pill,
+    gap: 6,
+  },
+  subTabActive:     { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: C.green } as const,
+  subTabText:       { fontSize: 13, color: C.textMuted, fontWeight: '500' as const },
+  subTabTextActive: { color: '#fff', fontWeight: '600' as const },
+  pendingBadge: {
+    backgroundColor: C.amber,
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    minWidth: 18,
+    alignItems: 'center' as const,
+  },
+  pendingBadgeText: { fontSize: 10, fontWeight: '800' as const, color: '#000' },
+
+  // Question cards (shared between live + pending)
+  qCard: {
+    flexDirection: 'row' as const,
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 14,
+    marginBottom: 10,
+    gap: 12,
+  },
+  qCardTop:    { borderColor: C.green + '55', backgroundColor: C.surface } as const,
+  upvoteCol:   { alignItems: 'center' as const, gap: 3, minWidth: 32, paddingTop: 2 },
+  upvoteCount: { fontSize: 12, fontWeight: '700' as const, color: C.textMuted },
+  topBadge: {
+    alignSelf: 'flex-start' as const,
+    backgroundColor: C.greenDim,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    marginBottom: 6,
+  },
+  topBadgeText: { fontSize: 11, fontWeight: '700' as const, color: C.green },
+  qText:   { fontSize: 14, color: C.text, lineHeight: 21, marginBottom: 6 },
+  qFooter: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  qMeta: { fontSize: 11, color: C.textMuted },
+
+  // Delete button (live feed)
+  deleteBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: C.redGlow,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
+  },
+  deleteBtnText: { fontSize: 12, color: C.red, fontWeight: '600' as const },
+
+  // Pending approval actions
+  approvalRow: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginTop: 12,
+  },
+  approveBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: C.green,
+    borderRadius: 10,
+    paddingVertical: 8,
+  },
+  approveBtnText: { fontSize: 13, fontWeight: '700' as const, color: '#fff' },
+  rejectBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: C.redGlow,
+    borderRadius: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
+  },
+  rejectBtnText: { fontSize: 13, fontWeight: '700' as const, color: C.red },
+
+  // Empty state
+  emptyBox:  { alignItems: 'center' as const, paddingVertical: 36, gap: 10 },
+  emptyText: { fontSize: 13, color: C.textMuted },
+};
+
+// =============================================================================
 // MAIN SCREEN
 // =============================================================================
 
@@ -434,6 +714,7 @@ const TABS: { key: FeedTab; label: string; icon: keyof typeof Ionicons.glyphMap 
   { key: 'all',          label: 'All',     icon: 'layers-outline'    },
   { key: 'announcement', label: 'Notices', icon: 'megaphone-outline' },
   { key: 'poll',         label: 'Polls',   icon: 'bar-chart-outline' },
+  { key: 'miting',       label: 'Miting',  icon: 'mic-outline'       },
 ];
 
 export function AdminDashboardScreen() {
@@ -442,28 +723,171 @@ export function AdminDashboardScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isSaving, setIsSaving]     = useState(false);
 
+  // Miting sub-tab state
+  const [mitingSubTab,     setMitingSubTab]     = useState<MitingSubTab>('live');
+  const [liveQuestions,    setLiveQuestions]    = useState<MitingQuestion[]>([]);
+  const [pendingQuestions, setPendingQuestions] = useState<MitingQuestion[]>([]);
+  const [pendingCount,     setPendingCount]     = useState(0);
+  const [approvingId,      setApprovingId]      = useState<string | null>(null);
+  const [rejectingId,      setRejectingId]      = useState<string | null>(null);
+  const [deletingLiveId,   setDeletingLiveId]   = useState<string | null>(null);
+
   const { data: rawPosts, isLoading, isError, error } = usePosts();
   const { mutateAsync: createPost } = useCreatePost();
   const { mutateAsync: updatePost } = useUpdatePost();
   const { mutateAsync: deletePost } = useDeletePost();
 
+  const { settings, isLoading: settingsLoading } = useSettings();
+  const { mutateAsync: updateSettings, isPending: isToggling } = useUpdateSettings();
+  const isMitingActive = !!(settings?.is_miting_active);
+
+  // ── Always-on pending count (powers the badge on the Miting tab) ──────────
+  useEffect(() => {
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from('MitingQuestions')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_approved', false);
+      setPendingCount(count ?? 0);
+    };
+
+    fetchCount();
+
+    const ch = supabase
+      .channel('admin-miting-pending-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'MitingQuestions' }, fetchCount)
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  // ── Full question lists + realtime (only when Miting tab is open) ─────────
+  useEffect(() => {
+    if (activeTab !== 'miting') return;
+
+    let cancelled = false;
+
+    const fetchLive = async () => {
+      const { data } = await supabase
+        .from('MitingQuestions')
+        .select('*')
+        .eq('is_approved', true)
+        .order('upvote_count', { ascending: false });
+      if (!cancelled && data) setLiveQuestions(data as MitingQuestion[]);
+    };
+
+    const fetchPending = async () => {
+      const { data } = await supabase
+        .from('MitingQuestions')
+        .select('*')
+        .eq('is_approved', false)
+        .order('created_at', { ascending: true });
+      if (!cancelled && data) setPendingQuestions(data as MitingQuestion[]);
+    };
+
+    fetchLive();
+    fetchPending();
+
+    const ch = supabase
+      .channel('admin-miting-questions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'MitingQuestions' }, () => {
+        fetchLive();
+        fetchPending();
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(ch);
+    };
+  }, [activeTab]);
+
+  // ── Approve a pending question ────────────────────────────────────────────
+  const handleApprove = async (id: string) => {
+    setApprovingId(id);
+    try {
+      await supabase.from('MitingQuestions').update({ is_approved: true }).eq('id', id);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not approve question.');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // ── Reject (delete) a pending question ───────────────────────────────────
+  const handleReject = (id: string) => {
+    Alert.alert(
+      'Reject Question',
+      'This will permanently remove the question.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            setRejectingId(id);
+            try {
+              await supabase.from('MitingQuestions').delete().eq('id', id);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'Could not reject question.');
+            } finally {
+              setRejectingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // ── Delete an approved (live) question ───────────────────────────────────
+  const handleDeleteLive = async (id: string) => {
+    setDeletingLiveId(id);
+    try {
+      await supabase.from('MitingQuestions').delete().eq('id', id);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not delete question.');
+    } finally {
+      setDeletingLiveId(null);
+    }
+  };
+
+  // ── Miting session toggle ─────────────────────────────────────────────────
+  const handleMitingToggle = () => {
+    Alert.alert(
+      isMitingActive ? 'End Miting Session?' : 'Start Miting Session?',
+      isMitingActive
+        ? 'This will close the live Q&A. Students will no longer be able to submit questions.'
+        : 'This will open the live Q&A for all students. They will be notified immediately.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: isMitingActive ? 'End Session' : 'Go Live',
+          style: isMitingActive ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              await updateSettings({ is_miting_active: !isMitingActive });
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'Could not update Miting status.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const posts    = (rawPosts ?? []) as RawPost[];
-  const filtered = posts.filter(p => activeTab === 'all' || p.type === activeTab);
+  const filtered = activeTab === 'miting'
+    ? []
+    : posts.filter(p => activeTab === 'all' || p.type === activeTab);
 
   const openCreate = () => setModal({ visible: true, mode: 'create', post: null });
   const openEdit   = (post: RawPost) => setModal({ visible: true, mode: 'edit', post });
   const closeModal = () => setModal(m => ({ ...m, visible: false }));
 
-  /**
-   * Two-step save:
-   *   1. Upsert the Post row, capture returned id
-   *   2. If poll, delete + re-insert all PollOptions for that post
-   */
   const handleSave = async (payload: SavePayload, id?: string) => {
     setIsSaving(true);
     try {
       let postId: string;
-
       if (id) {
         await updatePost({ id, type: payload.type, title: payload.title, content: payload.content } as any);
         postId = id;
@@ -475,11 +899,9 @@ export function AdminDashboardScreen() {
         } as any) as any;
         postId = created.id;
       }
-
       if (payload.type === 'poll') {
         await savePollOptions(postId, payload.pollOptions);
       }
-
       closeModal();
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Something went wrong. Please try again.');
@@ -491,7 +913,6 @@ export function AdminDashboardScreen() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      // Delete options first in case FK cascade is not set up
       await supabase.from('PollOptions').delete().eq('post_id', id);
       await deletePost(id);
     } catch (e: any) {
@@ -533,6 +954,7 @@ export function AdminDashboardScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── Main filter tabs (Miting tab gets pending badge) ── */}
       <View style={s.tabRow}>
         {TABS.map(tab => (
           <TouchableOpacity
@@ -549,9 +971,104 @@ export function AdminDashboardScreen() {
             <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]}>
               {tab.label}
             </Text>
+            {tab.key === 'miting' && pendingCount > 0 && (
+              <View style={mStyles.pendingBadge}>
+                <Text style={mStyles.pendingBadgeText}>{pendingCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
+
+      {activeTab === 'miting' && (
+        <>
+          {/* ── Control panel (Go Live / End Session) ── */}
+          <MitingControlPanel
+            isActive={isMitingActive}
+            isLoading={settingsLoading}
+            isToggling={isToggling}
+            onToggle={handleMitingToggle}
+          />
+
+          {/* ── Sub-tabs: Live Feed | Pending ── */}
+          <View style={mStyles.subTabRow}>
+            <TouchableOpacity
+              style={[mStyles.subTab, mitingSubTab === 'live' && mStyles.subTabActive]}
+              onPress={() => setMitingSubTab('live')}
+            >
+              <Ionicons
+                name="eye-outline"
+                size={14}
+                color={mitingSubTab === 'live' ? '#fff' : C.textMuted}
+              />
+              <Text style={[mStyles.subTabText, mitingSubTab === 'live' && mStyles.subTabTextActive]}>
+                Live Feed
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[mStyles.subTab, mitingSubTab === 'pending' && mStyles.subTabActive]}
+              onPress={() => setMitingSubTab('pending')}
+            >
+              <Ionicons
+                name="time-outline"
+                size={14}
+                color={mitingSubTab === 'pending' ? '#fff' : C.textMuted}
+              />
+              <Text style={[mStyles.subTabText, mitingSubTab === 'pending' && mStyles.subTabTextActive]}>
+                Pending
+              </Text>
+              {pendingQuestions.length > 0 && (
+                <View style={mStyles.pendingBadge}>
+                  <Text style={mStyles.pendingBadgeText}>{pendingQuestions.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Live Feed content ── */}
+          {mitingSubTab === 'live' && (
+            liveQuestions.length === 0 ? (
+              <View style={mStyles.emptyBox}>
+                <Ionicons name="chatbubble-ellipses-outline" size={30} color={C.textMuted} />
+                <Text style={mStyles.emptyText}>No approved questions yet.</Text>
+              </View>
+            ) : (
+              liveQuestions.map((q, i) => (
+                <LiveQuestionCard
+                  key={q.id}
+                  q={q}
+                  index={i}
+                  total={liveQuestions.length}
+                  onDelete={handleDeleteLive}
+                  isDeleting={deletingLiveId === q.id}
+                />
+              ))
+            )
+          )}
+
+          {/* ── Pending content ── */}
+          {mitingSubTab === 'pending' && (
+            pendingQuestions.length === 0 ? (
+              <View style={mStyles.emptyBox}>
+                <Ionicons name="checkmark-circle-outline" size={30} color={C.textMuted} />
+                <Text style={mStyles.emptyText}>No pending questions.</Text>
+              </View>
+            ) : (
+              pendingQuestions.map(q => (
+                <PendingQuestionCard
+                  key={q.id}
+                  q={q}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  isApproving={approvingId === q.id}
+                  isRejecting={rejectingId === q.id}
+                />
+              ))
+            )
+          )}
+        </>
+      )}
     </>
   );
 
@@ -568,7 +1085,8 @@ export function AdminDashboardScreen() {
         contentContainerStyle={s.listContent}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          isLoading ? (
+          activeTab === 'miting' ? null
+          : isLoading ? (
             <View style={s.stateBox}>
               <ActivityIndicator size="large" color={C.green} />
               <Text style={s.stateText}>Loading posts…</Text>
