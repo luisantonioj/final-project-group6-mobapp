@@ -403,9 +403,9 @@ const PostModal: React.FC<{
 const MitingControlPanel: React.FC<{
   isActive: boolean;
   isLoading: boolean;
-  isToggling: boolean;
+  isBusy: boolean;
   onToggle: () => void;
-}> = ({ isActive, isLoading, isToggling, onToggle }) => (
+}> = ({ isActive, isLoading, isBusy, onToggle }) => (
   <View style={mStyles.card}>
     <View style={mStyles.statusRow}>
       <View style={[mStyles.dot, { backgroundColor: isActive ? C.green : C.textMuted }]} />
@@ -418,20 +418,20 @@ const MitingControlPanel: React.FC<{
     <Text style={mStyles.desc}>
       {isActive
         ? 'The live Q&A session is currently open. Students can submit and upvote questions.'
-        : 'The live Q&A session is currently closed. Tap the button below to open it for students.'}
+        : 'The live Q&A session is currently closed. Going live will clear all previous questions and open a fresh session.'}
     </Text>
 
     <TouchableOpacity
       style={[
         mStyles.toggleBtn,
         isActive ? mStyles.toggleBtnEnd : mStyles.toggleBtnLive,
-        (isLoading || isToggling) && { opacity: 0.5 },
+        (isLoading || isBusy) && { opacity: 0.5 },
       ]}
       onPress={onToggle}
-      disabled={isLoading || isToggling}
+      disabled={isLoading || isBusy}
       activeOpacity={0.8}
     >
-      {isToggling ? (
+      {isBusy ? (
         <ActivityIndicator size={16} color="#fff" />
       ) : (
         <Ionicons
@@ -442,30 +442,33 @@ const MitingControlPanel: React.FC<{
         />
       )}
       <Text style={mStyles.toggleBtnText}>
-        {isToggling ? 'Updating…' : isActive ? 'End Session' : 'Go Live'}
+        {isBusy ? 'Updating…' : isActive ? 'End Session' : 'Go Live'}
       </Text>
     </TouchableOpacity>
 
     <View style={mStyles.infoRow}>
       <Ionicons name="information-circle-outline" size={14} color={C.textMuted} />
       <Text style={mStyles.infoText}>
-        Students receive a notification the moment you go live.
+        {isActive
+          ? 'Students receive a notification the moment you go live.'
+          : 'Previous questions are kept until you start a new session.'}
       </Text>
     </View>
   </View>
 );
 
 // =============================================================================
-// MITING — LIVE FEED CARD (read-only preview + delete)
+// MITING — LIVE FEED CARD
 // =============================================================================
 
 const LiveQuestionCard: React.FC<{
   q: MitingQuestion;
   index: number;
   total: number;
+  isViewOnly: boolean;
   onDelete: (id: string) => void;
   isDeleting: boolean;
-}> = ({ q, index, total, onDelete, isDeleting }) => {
+}> = ({ q, index, total, isViewOnly, onDelete, isDeleting }) => {
   const isTop = index === 0 && total > 1;
 
   const handleDelete = () => {
@@ -494,18 +497,25 @@ const LiveQuestionCard: React.FC<{
         <Text style={mStyles.qText}>{q.question_text}</Text>
         <View style={mStyles.qFooter}>
           <Text style={mStyles.qMeta}>{timeAgo(q.created_at)}</Text>
-          <TouchableOpacity
-            style={[mStyles.deleteBtn, isDeleting && { opacity: 0.5 }]}
-            onPress={handleDelete}
-            disabled={isDeleting}
-            activeOpacity={0.8}
-          >
-            {isDeleting
-              ? <ActivityIndicator size={12} color={C.red} />
-              : <Ionicons name="trash-outline" size={13} color={C.red} />
-            }
-            <Text style={mStyles.deleteBtnText}>Delete</Text>
-          </TouchableOpacity>
+          {isViewOnly ? (
+            <View style={mStyles.viewOnlyPill}>
+              <Ionicons name="eye-outline" size={11} color={C.textMuted} />
+              <Text style={mStyles.viewOnlyText}>View only</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[mStyles.deleteBtn, isDeleting && { opacity: 0.5 }]}
+              onPress={handleDelete}
+              disabled={isDeleting}
+              activeOpacity={0.8}
+            >
+              {isDeleting
+                ? <ActivityIndicator size={12} color={C.red} />
+                : <Ionicons name="trash-outline" size={13} color={C.red} />
+              }
+              <Text style={mStyles.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -518,42 +528,51 @@ const LiveQuestionCard: React.FC<{
 
 const PendingQuestionCard: React.FC<{
   q: MitingQuestion;
+  isViewOnly: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   isApproving: boolean;
   isRejecting: boolean;
-}> = ({ q, onApprove, onReject, isApproving, isRejecting }) => (
+}> = ({ q, isViewOnly, onApprove, onReject, isApproving, isRejecting }) => (
   <View style={mStyles.qCard}>
     <View style={{ flex: 1 }}>
       <Text style={mStyles.qText}>{q.question_text}</Text>
       <Text style={mStyles.qMeta}>{timeAgo(q.created_at)}</Text>
-      <View style={mStyles.approvalRow}>
-        <TouchableOpacity
-          style={[mStyles.approveBtn, (isApproving || isRejecting) && { opacity: 0.5 }]}
-          onPress={() => onApprove(q.id)}
-          disabled={isApproving || isRejecting}
-          activeOpacity={0.8}
-        >
-          {isApproving
-            ? <ActivityIndicator size={12} color="#fff" />
-            : <Ionicons name="checkmark" size={14} color="#fff" style={{ marginRight: 5 }} />
-          }
-          <Text style={mStyles.approveBtnText}>Approve</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[mStyles.rejectBtn, (isApproving || isRejecting) && { opacity: 0.5 }]}
-          onPress={() => onReject(q.id)}
-          disabled={isApproving || isRejecting}
-          activeOpacity={0.8}
-        >
-          {isRejecting
-            ? <ActivityIndicator size={12} color={C.red} />
-            : <Ionicons name="close" size={14} color={C.red} style={{ marginRight: 5 }} />
-          }
-          <Text style={mStyles.rejectBtnText}>Reject</Text>
-        </TouchableOpacity>
-      </View>
+      {isViewOnly ? (
+        <View style={mStyles.viewOnlyRow}>
+          <Ionicons name="eye-outline" size={13} color={C.textMuted} />
+          <Text style={mStyles.viewOnlyText}>View only — session ended</Text>
+        </View>
+      ) : (
+        <View style={mStyles.approvalRow}>
+          <TouchableOpacity
+            style={[mStyles.approveBtn, (isApproving || isRejecting) && { opacity: 0.5 }]}
+            onPress={() => onApprove(q.id)}
+            disabled={isApproving || isRejecting}
+            activeOpacity={0.8}
+          >
+            {isApproving
+              ? <ActivityIndicator size={12} color="#fff" />
+              : <Ionicons name="checkmark" size={14} color="#fff" style={{ marginRight: 5 }} />
+            }
+            <Text style={mStyles.approveBtnText}>Approve</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[mStyles.rejectBtn, (isApproving || isRejecting) && { opacity: 0.5 }]}
+            onPress={() => onReject(q.id)}
+            disabled={isApproving || isRejecting}
+            activeOpacity={0.8}
+          >
+            {isRejecting
+              ? <ActivityIndicator size={12} color={C.red} />
+              : <Ionicons name="close" size={14} color={C.red} style={{ marginRight: 5 }} />
+            }
+            <Text style={mStyles.rejectBtnText}>Reject</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   </View>
 );
@@ -563,7 +582,6 @@ const PendingQuestionCard: React.FC<{
 // =============================================================================
 
 const mStyles = {
-  // Control panel card
   card: {
     backgroundColor: C.card,
     borderRadius: 16,
@@ -596,7 +614,6 @@ const mStyles = {
   infoRow:  { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
   infoText: { fontSize: 11, color: C.textMuted, flex: 1, lineHeight: 16 },
 
-  // Sub-tabs
   subTabRow: {
     flexDirection: 'row' as const,
     gap: 8,
@@ -627,7 +644,6 @@ const mStyles = {
   },
   pendingBadgeText: { fontSize: 10, fontWeight: '800' as const, color: '#000' },
 
-  // Question cards (shared between live + pending)
   qCard: {
     flexDirection: 'row' as const,
     backgroundColor: C.card,
@@ -658,7 +674,26 @@ const mStyles = {
   },
   qMeta: { fontSize: 11, color: C.textMuted },
 
-  // Delete button (live feed)
+  // View-only indicators
+  viewOnlyPill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  viewOnlyRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginTop: 10,
+  },
+  viewOnlyText: { fontSize: 11, color: C.textMuted, fontStyle: 'italic' as const },
+
   deleteBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -672,7 +707,6 @@ const mStyles = {
   },
   deleteBtnText: { fontSize: 12, color: C.red, fontWeight: '600' as const },
 
-  // Pending approval actions
   approvalRow: {
     flexDirection: 'row' as const,
     gap: 8,
@@ -701,7 +735,6 @@ const mStyles = {
   },
   rejectBtnText: { fontSize: 13, fontWeight: '700' as const, color: C.red },
 
-  // Empty state
   emptyBox:  { alignItems: 'center' as const, paddingVertical: 36, gap: 10 },
   emptyText: { fontSize: 13, color: C.textMuted },
 };
@@ -723,14 +756,15 @@ export function AdminDashboardScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isSaving, setIsSaving]     = useState(false);
 
-  // Miting sub-tab state
-  const [mitingSubTab,     setMitingSubTab]     = useState<MitingSubTab>('live');
-  const [liveQuestions,    setLiveQuestions]    = useState<MitingQuestion[]>([]);
-  const [pendingQuestions, setPendingQuestions] = useState<MitingQuestion[]>([]);
-  const [pendingCount,     setPendingCount]     = useState(0);
-  const [approvingId,      setApprovingId]      = useState<string | null>(null);
-  const [rejectingId,      setRejectingId]      = useState<string | null>(null);
-  const [deletingLiveId,   setDeletingLiveId]   = useState<string | null>(null);
+  // Miting state
+  const [mitingSubTab,      setMitingSubTab]      = useState<MitingSubTab>('live');
+  const [liveQuestions,     setLiveQuestions]     = useState<MitingQuestion[]>([]);
+  const [pendingQuestions,  setPendingQuestions]  = useState<MitingQuestion[]>([]);
+  const [pendingCount,      setPendingCount]      = useState(0);
+  const [approvingId,       setApprovingId]       = useState<string | null>(null);
+  const [rejectingId,       setRejectingId]       = useState<string | null>(null);
+  const [deletingLiveId,    setDeletingLiveId]    = useState<string | null>(null);
+  const [isStartingSession, setIsStartingSession] = useState(false);
 
   const { data: rawPosts, isLoading, isError, error } = usePosts();
   const { mutateAsync: createPost } = useCreatePost();
@@ -740,6 +774,7 @@ export function AdminDashboardScreen() {
   const { settings, isLoading: settingsLoading } = useSettings();
   const { mutateAsync: updateSettings, isPending: isToggling } = useUpdateSettings();
   const isMitingActive = !!(settings?.is_miting_active);
+  const isBusy = isToggling || isStartingSession;
 
   // ── Always-on pending count (powers the badge on the Miting tab) ──────────
   useEffect(() => {
@@ -853,26 +888,60 @@ export function AdminDashboardScreen() {
 
   // ── Miting session toggle ─────────────────────────────────────────────────
   const handleMitingToggle = () => {
-    Alert.alert(
-      isMitingActive ? 'End Miting Session?' : 'Start Miting Session?',
-      isMitingActive
-        ? 'This will close the live Q&A. Students will no longer be able to submit questions.'
-        : 'This will open the live Q&A for all students. They will be notified immediately.',
-      [
+    if (isMitingActive) {
+      // End session — only deactivate, questions stay intact
+      Alert.alert(
+        'End Miting Session?',
+        'This will close the live Q&A. Students can no longer submit questions. All questions will remain in view-only mode until the next session goes live.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'End Session',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await updateSettings({ is_miting_active: false });
+              } catch (e: any) {
+                Alert.alert('Error', e?.message ?? 'Could not end session.');
+              }
+            },
+          },
+        ],
+      );
+    } else {
+      // Go Live — wipe all previous questions first, then activate
+      const prevCount = liveQuestions.length + pendingQuestions.length;
+      const message = prevCount > 0
+        ? `This will permanently clear all ${prevCount} question(s) from the previous session and open a fresh live Q&A. Students will be notified immediately.`
+        : 'This will open the live Q&A for all students. They will be notified immediately.';
+
+      Alert.alert('Start Miting Session?', message, [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: isMitingActive ? 'End Session' : 'Go Live',
-          style: isMitingActive ? 'destructive' : 'default',
+          text: 'Go Live',
           onPress: async () => {
+            setIsStartingSession(true);
             try {
-              await updateSettings({ is_miting_active: !isMitingActive });
+              if (prevCount > 0) {
+                const { data } = await supabase.from('MitingQuestions').select('id');
+                const ids = (data ?? []).map((q: any) => q.id);
+                if (ids.length > 0) {
+                  await supabase.from('MitingQuestions').delete().in('id', ids);
+                }
+                setLiveQuestions([]);
+                setPendingQuestions([]);
+                setPendingCount(0);
+              }
+              await updateSettings({ is_miting_active: true });
             } catch (e: any) {
-              Alert.alert('Error', e?.message ?? 'Could not update Miting status.');
+              Alert.alert('Error', e?.message ?? 'Could not start session.');
+            } finally {
+              setIsStartingSession(false);
             }
           },
         },
-      ],
-    );
+      ]);
+    }
   };
 
   const posts    = (rawPosts ?? []) as RawPost[];
@@ -986,7 +1055,7 @@ export function AdminDashboardScreen() {
           <MitingControlPanel
             isActive={isMitingActive}
             isLoading={settingsLoading}
-            isToggling={isToggling}
+            isBusy={isBusy}
             onToggle={handleMitingToggle}
           />
 
@@ -1040,6 +1109,7 @@ export function AdminDashboardScreen() {
                   q={q}
                   index={i}
                   total={liveQuestions.length}
+                  isViewOnly={!isMitingActive}
                   onDelete={handleDeleteLive}
                   isDeleting={deletingLiveId === q.id}
                 />
@@ -1059,6 +1129,7 @@ export function AdminDashboardScreen() {
                 <PendingQuestionCard
                   key={q.id}
                   q={q}
+                  isViewOnly={!isMitingActive}
                   onApprove={handleApprove}
                   onReject={handleReject}
                   isApproving={approvingId === q.id}
