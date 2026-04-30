@@ -1,16 +1,5 @@
 /**
  * AdminSettingsScreen.tsx — Admin profile + settings + sign out
- * ─────────────────────────────────────────────────────────────────────────────
- * Mirrors ProfileScreen.tsx but for Admin accounts.
- * Shows admin info from authStore.userProfile.
- *
- * EDIT PROFILE (same as student):
- *   await supabase.from('Users').update({ name }).eq('id', userProfile.id);
- *
- * SIGN OUT:
- *   await supabase.auth.signOut() → onAuthStateChange fires →
- *   clear() → RootNavigator → SplashScreen → Login.
- * ─────────────────────────────────────────────────────────────────────────────
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -22,22 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons }     from '@expo/vector-icons';
 import { supabase }     from '../../utils/supabase';
 import { useAuthStore } from '../../stores/authStore';
-
-// ─── Admin colour palette (blue/slate instead of green) ───────────────────────
-const C = {
-  bg:          '#0A0A0F',
-  surface:     '#11111A',
-  surface2:    '#16162A',
-  border:      '#1E1E3E',
-  blue:        '#1E40AF',
-  blueBright:  '#60A5FA',
-  blueGlow:    'rgba(96,165,250,0.10)',
-  text:        '#F0F4FF',
-  textSub:     '#A3B3C5',
-  textMuted:   '#4B5B8B',
-  error:       '#EF4444',
-  errorGlow:   'rgba(239,68,68,0.10)',
-};
+import { T }            from '../../theme';
 
 export function AdminSettingsScreen() {
   const { userProfile, session, setProfile, clear } = useAuthStore();
@@ -49,7 +23,6 @@ export function AdminSettingsScreen() {
   const [saveError,   setSaveError]   = useState<string | null>(null);
   const [signOutBusy, setSignOutBusy] = useState(false);
 
-  // Fetch profile if not in store (e.g. after session restore)
   useEffect(() => {
     if (userProfile || !session) { setLoading(false); return; }
     supabase
@@ -67,7 +40,6 @@ export function AdminSettingsScreen() {
     ? userProfile.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
 
-  // ─── Edit profile ────────────────────────────────────────────────────────
   const startEdit = () => {
     setEditName(userProfile?.name ?? '');
     setSaveError(null);
@@ -92,7 +64,6 @@ export function AdminSettingsScreen() {
     setEditing(false);
   };
 
-  // ─── Sign out ─────────────────────────────────────────────────────────────
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -112,7 +83,7 @@ export function AdminSettingsScreen() {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.center}>
-          <ActivityIndicator size="large" color={C.blueBright} />
+          <ActivityIndicator size="large" color={T.green} />
         </View>
       </SafeAreaView>
     );
@@ -120,13 +91,12 @@ export function AdminSettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={T.bg} />
 
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
         <Text style={s.screenTitle}>Settings</Text>
 
         {/* ── Avatar ── */}
@@ -144,7 +114,7 @@ export function AdminSettingsScreen() {
               value={editName}
               onChangeText={setEditName}
               placeholder="Your full name"
-              placeholderTextColor={C.textMuted}
+              placeholderTextColor={T.textMuted}
               autoFocus
               maxLength={80}
             />
@@ -169,29 +139,28 @@ export function AdminSettingsScreen() {
           <View style={s.nameRow}>
             <Text style={s.name}>{userProfile?.name ?? '—'}</Text>
             <TouchableOpacity onPress={startEdit} style={s.editIcon}>
-              <Ionicons name="pencil-outline" size={15} color={C.textMuted} />
+              <Ionicons name="pencil-outline" size={15} color={T.textMuted} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── Email (read-only) ── */}
         <Text style={s.email}>{userProfile?.email ?? session?.user.email ?? '—'}</Text>
 
         {/* ── Admin role badge ── */}
         <View style={s.roleBadge}>
-          <Ionicons name="shield-outline" size={13} color={C.blueBright} style={{ marginRight: 5 }} />
+          <Ionicons name="shield-outline" size={13} color={T.green} style={{ marginRight: 5 }} />
           <Text style={s.roleBadgeText}>Administrator</Text>
         </View>
 
         {/* ── Account info ── */}
         <View style={s.infoSection}>
-          <InfoRow icon="business-outline"       label="Institution"     value="De La Salle Lipa" />
-          <InfoRow icon="calendar-outline"        label="Election"        value="SY 2025–2026" />
+          <InfoRow icon="business-outline"  label="Institution"    value="De La Salle Lipa" />
+          <InfoRow icon="calendar-outline"  label="Election"       value="SY 2025–2026" />
           <InfoRow
             icon="checkmark-circle-outline"
             label="Account Status"
             value={userProfile?.is_active ? 'Active' : 'Inactive'}
-            valueColor={userProfile?.is_active ? C.blueBright : C.error}
+            valueColor={userProfile?.is_active ? T.green : T.red}
           />
         </View>
 
@@ -203,9 +172,9 @@ export function AdminSettingsScreen() {
           activeOpacity={0.8}
         >
           {signOutBusy
-            ? <ActivityIndicator size="small" color={C.error} />
+            ? <ActivityIndicator size="small" color={T.red} />
             : <>
-                <Ionicons name="log-out-outline" size={17} color={C.error} style={{ marginRight: 8 }} />
+                <Ionicons name="log-out-outline" size={17} color={T.red} style={{ marginRight: 8 }} />
                 <Text style={s.signOutText}>Sign Out</Text>
               </>
           }
@@ -217,7 +186,6 @@ export function AdminSettingsScreen() {
   );
 }
 
-// ─── Reusable info row ────────────────────────────────────────────────────────
 function InfoRow({ icon, label, value, valueColor }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
@@ -226,7 +194,7 @@ function InfoRow({ icon, label, value, valueColor }: {
 }) {
   return (
     <View style={s.infoRow}>
-      <Ionicons name={icon} size={16} color={C.textMuted} style={{ marginRight: 10 }} />
+      <Ionicons name={icon} size={16} color={T.textMuted} style={{ marginRight: 10 }} />
       <Text style={s.infoLabel}>{label}</Text>
       <Text style={[s.infoValue, valueColor ? { color: valueColor } : null]}>{value}</Text>
     </View>
@@ -234,76 +202,94 @@ function InfoRow({ icon, label, value, valueColor }: {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: C.bg },
-  center:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll:      { alignItems: 'center', paddingTop: 24, paddingHorizontal: 24, paddingBottom: 48 },
+  safe:   { flex: 1, backgroundColor: T.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scroll: { alignItems: 'center', paddingTop: 24, paddingHorizontal: 24, paddingBottom: 48 },
 
-  screenTitle: { fontSize: 26, fontWeight: '800', color: C.text, marginBottom: 28, alignSelf: 'flex-start' },
+  screenTitle: {
+    fontSize: 26, fontWeight: '800', color: T.text,
+    marginBottom: 28, alignSelf: 'flex-start',
+  },
 
   // Avatar
   avatarWrap:   { marginBottom: 16 },
-  avatarCircle: { width: 90, height: 90, borderRadius: 45,
-                  backgroundColor: C.surface2, borderWidth: 2, borderColor: C.blueBright,
-                  alignItems: 'center', justifyContent: 'center' },
-  avatarText:   { fontSize: 32, fontWeight: '800', color: C.blueBright },
+  avatarCircle: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: T.greenDim,
+    borderWidth: 2, borderColor: T.green,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: T.green, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.20, shadowRadius: 10, elevation: 4,
+  },
+  avatarText: { fontSize: 32, fontWeight: '800', color: T.green },
 
   // Name
-  nameRow:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  name:          { fontSize: 22, fontWeight: '800', color: C.text },
-  editIcon:      { padding: 5, backgroundColor: C.surface2, borderRadius: 20,
-                   borderWidth: 1, borderColor: C.border },
-  email:         { fontSize: 13, color: C.textMuted, marginBottom: 14 },
+  nameRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  name:     { fontSize: 22, fontWeight: '800', color: T.text },
+  editIcon: {
+    padding: 5, backgroundColor: T.surface2, borderRadius: 20,
+    borderWidth: 1, borderColor: T.border,
+  },
+  email: { fontSize: 13, color: T.textMuted, marginBottom: 14 },
 
   // Role badge
   roleBadge: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.blueGlow, borderRadius: 20,
+    backgroundColor: T.greenLight, borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 6, marginBottom: 28,
-    borderWidth: 1, borderColor: C.blueBright + '44',
+    borderWidth: 1, borderColor: T.green + '44',
   },
-  roleBadgeText: { fontSize: 12, fontWeight: '700', color: C.blueBright },
+  roleBadgeText: { fontSize: 12, fontWeight: '700', color: T.green },
 
   // Edit form
-  editWrap:      { width: '100%', marginBottom: 4 },
+  editWrap:  { width: '100%', marginBottom: 4 },
   editInput: {
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.blueBright + '77',
-    borderRadius: 12, color: C.text, fontSize: 16,
+    backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.green + '88',
+    borderRadius: 12, color: T.text, fontSize: 16,
     paddingHorizontal: 14, paddingVertical: 12,
     textAlign: 'center', fontWeight: '700',
   },
-  saveError:     { color: C.error, fontSize: 12, textAlign: 'center', marginTop: 6 },
+  saveError:     { color: T.red, fontSize: 12, textAlign: 'center', marginTop: 6 },
   editActions:   { flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center' },
-  cancelEditBtn: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 10,
-                   paddingVertical: 10, alignItems: 'center' },
-  cancelEditText:{ color: C.textMuted, fontWeight: '600' },
-  saveBtn:       { flex: 1, backgroundColor: C.blue, borderRadius: 10,
-                   paddingVertical: 10, alignItems: 'center' },
-  saveBtnText:   { color: '#fff', fontWeight: '700' },
+  cancelEditBtn: {
+    flex: 1, borderWidth: 1, borderColor: T.border, borderRadius: 10,
+    paddingVertical: 10, alignItems: 'center', backgroundColor: T.surface,
+  },
+  cancelEditText: { color: T.textMuted, fontWeight: '600' },
+  saveBtn: {
+    flex: 1, backgroundColor: T.green, borderRadius: 10,
+    paddingVertical: 10, alignItems: 'center',
+    shadowColor: T.green, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+  },
+  saveBtnText: { color: '#fff', fontWeight: '700' },
 
   // Info section
   infoSection: {
     width: '100%',
-    backgroundColor: C.surface, borderRadius: 14,
-    borderWidth: 1, borderColor: C.border,
+    backgroundColor: T.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: T.border,
     marginBottom: 24, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
   infoRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: C.border,
+    borderBottomWidth: 1, borderBottomColor: T.border,
   },
-  infoLabel: { flex: 1, fontSize: 13, color: C.textSub },
-  infoValue: { fontSize: 13, fontWeight: '600', color: C.text },
+  infoLabel: { flex: 1, fontSize: 13, color: T.textSub },
+  infoValue: { fontSize: 13, fontWeight: '600', color: T.text },
 
   // Sign out
   signOutBtn: {
     width: '100%',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.errorGlow, borderRadius: 14,
-    borderWidth: 1, borderColor: C.error + '44',
+    backgroundColor: T.redGlow, borderRadius: 14,
+    borderWidth: 1, borderColor: T.red + '33',
     paddingVertical: 14, marginBottom: 20,
   },
-  signOutText: { color: C.error, fontSize: 15, fontWeight: '700' },
+  signOutText: { color: T.red, fontSize: 15, fontWeight: '700' },
 
-  version: { fontSize: 11, color: C.textMuted, letterSpacing: 0.4 },
+  version: { fontSize: 11, color: T.textMuted, letterSpacing: 0.4 },
 });

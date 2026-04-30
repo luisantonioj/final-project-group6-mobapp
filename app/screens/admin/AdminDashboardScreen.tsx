@@ -46,6 +46,7 @@ import { usePosts, useCreatePost, useUpdatePost, useDeletePost } from '../../hoo
 import { useSettings, useUpdateSettings } from '../../hooks/useSettings';
 import { supabase } from '../../utils/supabase';
 import { C, s } from './AdminDashboardScreen.styles';
+import { T } from '../../theme';
 
 // =============================================================================
 // TYPES
@@ -682,7 +683,7 @@ const mStyles = {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: C.pill,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -1018,7 +1019,7 @@ export function AdminDashboardScreen() {
       <View style={s.sectionBar}>
         <Text style={s.sectionLabel}>Manage Posts</Text>
         <TouchableOpacity style={s.createBtn} onPress={openCreate}>
-          <Ionicons name="add" size={16} color="#000" />
+          <Ionicons name="add" size={16} color="#fff" />
           <Text style={s.createBtnText}>New Post</Text>
         </TouchableOpacity>
       </View>
@@ -1145,7 +1146,7 @@ export function AdminDashboardScreen() {
 
   return (
     <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
 
       <FlatList
         data={isLoading || isError ? [] : filtered}

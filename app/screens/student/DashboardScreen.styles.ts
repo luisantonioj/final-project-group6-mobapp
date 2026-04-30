@@ -1,25 +1,26 @@
 import { StyleSheet } from 'react-native';
+import { T } from '../../theme';
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 export const COLORS = {
-  bg: '#0A0F0A',
-  bgCard: '#111811',
-  bgElevated: '#162016',
-  border: '#1E2E1E',
-  borderBright: '#2A4A2A',
-  green: '#22C55E',
-  greenDim: '#16A34A',
-  greenFaint: '#14532D',
-  greenGlow: 'rgba(34,197,94,0.12)',
-  greenGlow2: 'rgba(34,197,94,0.06)',
-  text: '#F0FFF0',
-  textMuted: '#6B8C6B',
-  textSub: '#A3C5A3',
-  red: '#EF4444',
-  redFaint: 'rgba(239,68,68,0.12)',
-  whiteFaint: 'rgba(255,255,255,0.1)',
-  amber: '#F59E0B',
-  white: '#FFFFFF',
+  bg:           T.bg,
+  bgCard:       T.surface,
+  bgElevated:   T.surface2,
+  border:       T.border,
+  borderBright: 'rgba(27,98,53,0.22)',
+  green:        T.green,
+  greenDim:     T.greenBright,
+  greenFaint:   T.greenLight,
+  greenGlow:    T.greenLight,
+  greenGlow2:   'rgba(27,98,53,0.04)',
+  text:         T.text,
+  textMuted:    T.textMuted,
+  textSub:      T.textSub,
+  red:          T.red,
+  redFaint:     T.redGlow,
+  whiteFaint:   T.surface2,
+  amber:        T.amber,
+  white:        T.surface,
 };
 
 export const FONT = {
@@ -60,6 +61,11 @@ export const shared = StyleSheet.create({
     borderColor: COLORS.border,
     padding: SPACE.base,
     marginBottom: SPACE.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: FONT.xs,
@@ -171,6 +177,11 @@ export const countdownStyles = StyleSheet.create({
     padding: SPACE.base,
     marginBottom: SPACE.md,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   glowBar: {
     position: 'absolute',
@@ -222,7 +233,7 @@ export const countdownStyles = StyleSheet.create({
   },
   progressTrack: {
     height: 4,
-    backgroundColor: COLORS.bgCard,
+    backgroundColor: COLORS.border,
     borderRadius: RADIUS.pill,
     overflow: 'hidden',
   },
@@ -252,22 +263,23 @@ export const feedStyles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: COLORS.bgElevated,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-
   tabActive: {
     backgroundColor: COLORS.greenFaint,
+    borderColor: COLORS.borderBright,
   },
-
   tabText: {
-    color: '#9ca3af',
+    color: COLORS.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },
-
   tabTextActive: {
-    color: '#fff',
+    color: COLORS.green,
+    fontWeight: '700',
   },
   postCard: {
     backgroundColor: COLORS.bgCard,
@@ -276,6 +288,11 @@ export const feedStyles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: SPACE.base,
     marginBottom: SPACE.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   postHeader: {
     flexDirection: 'row',
@@ -398,8 +415,6 @@ export const feedStyles = StyleSheet.create({
     fontSize: FONT.sm,
     color: COLORS.textMuted,
   },
-
-
   commentSendBtn: {
     width: 32,
     height: 32,
@@ -585,7 +600,7 @@ export const liveStyles = StyleSheet.create({
   },
   positionTabActive: {
     backgroundColor: COLORS.greenFaint,
-    borderColor: COLORS.green,
+    borderColor: COLORS.borderBright,
   },
   positionTabText: {
     fontSize: FONT.xs,

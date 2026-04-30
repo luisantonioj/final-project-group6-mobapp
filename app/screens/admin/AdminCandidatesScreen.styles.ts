@@ -1,27 +1,27 @@
 // screens/admin/AdminCandidatesScreen.styles.ts
 import { StyleSheet } from 'react-native';
+import { T } from '../../theme';
 
-// ─── Design tokens ── same palette as DashboardScreen ────────────────────────
 export const COLORS = {
-  bg:           '#0A0F0A',
-  bgCard:       '#111811',
-  bgElevated:   '#162016',
-  bgModal:      '#0D140D',
-  border:       '#1E2E1E',
-  borderBright: '#2A4A2A',
-  green:        '#22C55E',
-  greenDim:     '#16A34A',
-  greenFaint:   '#14532D',
-  text:         '#F0FFF0',
-  textMuted:    '#6B8C6B',
-  textSub:      '#A3C5A3',
-  red:          '#EF4444',
-  redFaint:     'rgba(239,68,68,0.12)',
-  redBorder:    'rgba(239,68,68,0.35)',
-  amber:        '#F59E0B',
-  amberFaint:   'rgba(245,158,11,0.12)',
-  amberBorder:  'rgba(245,158,11,0.35)',
-  overlay:      'rgba(0,0,0,0.78)',
+  bg:           T.bg,
+  bgCard:       T.surface,
+  bgElevated:   T.surface2,
+  bgModal:      T.surface,
+  border:       T.border,
+  borderBright: 'rgba(27,98,53,0.22)',
+  green:        T.green,
+  greenDim:     T.green,
+  greenFaint:   T.greenLight,
+  text:         T.text,
+  textMuted:    T.textMuted,
+  textSub:      T.textSub,
+  red:          T.red,
+  redFaint:     T.redGlow,
+  redBorder:    'rgba(220,38,38,0.25)',
+  amber:        T.amber,
+  amberFaint:   T.amberGlow,
+  amberBorder:  'rgba(217,119,6,0.30)',
+  overlay:      'rgba(0,0,0,0.40)',
 };
 
 export const FONT = {
@@ -67,6 +67,7 @@ export const screenStyles = StyleSheet.create({
     paddingBottom:     SPACE.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    backgroundColor:   COLORS.bg,
   },
   headerTitle: {
     fontSize:      FONT.xxl,
@@ -87,6 +88,11 @@ export const screenStyles = StyleSheet.create({
     borderRadius:      RADIUS.pill,
     paddingHorizontal: SPACE.md,
     paddingVertical:   SPACE.sm,
+    shadowColor:       COLORS.green,
+    shadowOffset:      { width: 0, height: 3 },
+    shadowOpacity:     0.25,
+    shadowRadius:      6,
+    elevation:         3,
   },
   addBtnText: {
     fontSize:   FONT.sm,
@@ -137,7 +143,8 @@ export const filterStyles = StyleSheet.create({
     color:      COLORS.textMuted,
   },
   tabTextActive: {
-    color: COLORS.green,
+    color:      COLORS.green,
+    fontWeight: '700',
   },
 });
 
@@ -153,6 +160,11 @@ export const cardStyles = StyleSheet.create({
     marginBottom:    SPACE.sm,
     padding:         SPACE.base,
     gap:             SPACE.md,
+    shadowColor:     '#000',
+    shadowOffset:    { width: 0, height: 1 },
+    shadowOpacity:   0.05,
+    shadowRadius:    3,
+    elevation:       1,
   },
   avatar: {
     width:           50,
@@ -191,12 +203,12 @@ export const cardStyles = StyleSheet.create({
     gap:           SPACE.xs,
   },
   actionBtn: {
-    width:           34,
-    height:          34,
-    borderRadius:    17,
-    alignItems:      'center',
-    justifyContent:  'center',
-    borderWidth:     1,
+    width:          34,
+    height:         34,
+    borderRadius:   17,
+    alignItems:     'center',
+    justifyContent: 'center',
+    borderWidth:    1,
   },
   viewBtn: {
     backgroundColor: COLORS.bgElevated,
@@ -225,11 +237,16 @@ export const formStyles = StyleSheet.create({
     borderTopLeftRadius:  RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     borderTopWidth:       1,
-    borderTopColor:       COLORS.borderBright,
+    borderTopColor:       COLORS.border,
     paddingHorizontal:    SPACE.xl,
     paddingTop:           SPACE.lg,
     paddingBottom:        48,
     maxHeight:            '92%',
+    shadowColor:          '#000',
+    shadowOffset:         { width: 0, height: -4 },
+    shadowOpacity:        0.08,
+    shadowRadius:         12,
+    elevation:            8,
   },
   handle: {
     width:           40,
@@ -271,7 +288,6 @@ export const formStyles = StyleSheet.create({
     minHeight:         88,
     textAlignVertical: 'top',
   },
-  // Inline position selector inside form
   positionScrollRow: {
     marginBottom: SPACE.xs,
   },
@@ -298,7 +314,8 @@ export const formStyles = StyleSheet.create({
     color:      COLORS.textMuted,
   },
   positionTabTextActive: {
-    color: COLORS.green,
+    color:      COLORS.green,
+    fontWeight: '700',
   },
   divider: {
     height:          1,
@@ -315,6 +332,11 @@ export const formStyles = StyleSheet.create({
     borderRadius:    RADIUS.lg,
     paddingVertical: SPACE.md,
     alignItems:      'center',
+    shadowColor:     COLORS.green,
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.25,
+    shadowRadius:    6,
+    elevation:       3,
   },
   btnSaveDisabled: {
     opacity: 0.45,

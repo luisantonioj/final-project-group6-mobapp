@@ -26,24 +26,11 @@ import { SafeAreaView }  from 'react-native-safe-area-context';
 import { StatusBar }     from 'expo-status-bar';
 import { Ionicons }      from '@expo/vector-icons';
 import { supabase }      from '../utils/supabase';
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const C = {
-  bg:          '#0A0F0A',
-  surface:     '#111811',
-  border:      '#1E2E1E',
-  green:       '#0F6E56',
-  greenBright: '#22C55E',
-  text:        '#F0FFF0',
-  textSub:     '#A3C5A3',
-  textMuted:   '#4B6B4B',
-  error:       '#EF4444',
-};
+import { T }             from '../theme';
 
 type Mode = 'login' | 'signup';
 
 export function LoginScreen() {
-  // ✅ Removed: setSession, setRole, setProfile — onAuthStateChange handles all of this
   const [mode,     setMode]     = useState<Mode>('login');
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
@@ -52,7 +39,6 @@ export function LoginScreen() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
 
-  // Subtle fade when switching modes
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const switchMode = (next: Mode) => {
     if (next === mode) return;
@@ -84,23 +70,18 @@ export function LoginScreen() {
 
     try {
       if (mode === 'login') {
-        // ── Log In — just trigger auth, onAuthStateChange handles the rest ──
         const { error: authErr } = await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
           password,
         });
         if (authErr) throw new Error(authErr.message);
-        // ✅ No setRole/setProfile/setSession here — App.tsx onAuthStateChange does it
-
       } else {
-        // ── Sign Up — just trigger auth, onAuthStateChange handles the rest ──
         const { error: authErr } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
           options: { data: { name: name.trim() } },
         });
         if (authErr) throw new Error(authErr.message);
-        // ✅ No setRole/setProfile/setSession here — App.tsx onAuthStateChange does it
       }
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong. Please try again.');
@@ -111,7 +92,7 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -149,18 +130,17 @@ export function LoginScreen() {
             {/* ── Form fields ── */}
             <Animated.View style={[s.form, { opacity: fadeAnim }]}>
 
-              {/* Full name — signup only */}
               {mode === 'signup' && (
                 <View style={s.fieldGroup}>
                   <Text style={s.label}>Full Name</Text>
                   <View style={s.inputRow}>
-                    <Ionicons name="person-outline" size={16} color={C.textMuted} style={s.inputIcon} />
+                    <Ionicons name="person-outline" size={16} color={T.textMuted} style={s.inputIcon} />
                     <TextInput
                       style={s.input}
                       value={name}
                       onChangeText={setName}
                       placeholder="e.g. Juan dela Cruz"
-                      placeholderTextColor={C.textMuted}
+                      placeholderTextColor={T.textMuted}
                       autoCapitalize="words"
                       returnKeyType="next"
                     />
@@ -168,17 +148,16 @@ export function LoginScreen() {
                 </View>
               )}
 
-              {/* Email */}
               <View style={s.fieldGroup}>
                 <Text style={s.label}>School Email</Text>
                 <View style={s.inputRow}>
-                  <Ionicons name="mail-outline" size={16} color={C.textMuted} style={s.inputIcon} />
+                  <Ionicons name="mail-outline" size={16} color={T.textMuted} style={s.inputIcon} />
                   <TextInput
                     style={s.input}
                     value={email}
                     onChangeText={setEmail}
                     placeholder="student@dlsl.edu.ph"
-                    placeholderTextColor={C.textMuted}
+                    placeholderTextColor={T.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -187,17 +166,16 @@ export function LoginScreen() {
                 </View>
               </View>
 
-              {/* Password */}
               <View style={s.fieldGroup}>
                 <Text style={s.label}>Password</Text>
                 <View style={s.inputRow}>
-                  <Ionicons name="lock-closed-outline" size={16} color={C.textMuted} style={s.inputIcon} />
+                  <Ionicons name="lock-closed-outline" size={16} color={T.textMuted} style={s.inputIcon} />
                   <TextInput
                     style={[s.input, { flex: 1 }]}
                     value={password}
                     onChangeText={setPass}
                     placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
-                    placeholderTextColor={C.textMuted}
+                    placeholderTextColor={T.textMuted}
                     secureTextEntry={!showPass}
                     autoCapitalize="none"
                     returnKeyType="done"
@@ -207,21 +185,19 @@ export function LoginScreen() {
                     <Ionicons
                       name={showPass ? 'eye-off-outline' : 'eye-outline'}
                       size={18}
-                      color={C.textMuted}
+                      color={T.textMuted}
                     />
                   </TouchableOpacity>
                 </View>
               </View>
 
-              {/* Error message */}
               {error && (
                 <View style={s.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={15} color={C.error} />
+                  <Ionicons name="alert-circle-outline" size={15} color={T.red} />
                   <Text style={s.errorText}>{error}</Text>
                 </View>
               )}
 
-              {/* Submit button */}
               <TouchableOpacity
                 style={[s.submitBtn, loading && { opacity: 0.65 }]}
                 onPress={handleSubmit}
@@ -236,7 +212,6 @@ export function LoginScreen() {
                 }
               </TouchableOpacity>
 
-              {/* Switch mode hint */}
               <TouchableOpacity
                 style={s.switchHint}
                 onPress={() => switchMode(mode === 'login' ? 'signup' : 'login')}
@@ -257,50 +232,59 @@ export function LoginScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: C.bg },
+  safe:   { flex: 1, backgroundColor: T.bg },
   scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 40 },
 
   // Header
   header:      { alignItems: 'center', marginBottom: 36 },
-  logoBadge:   { width: 64, height: 64, borderRadius: 18, backgroundColor: C.green,
-                 alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-                 borderWidth: 1.5, borderColor: C.greenBright },
+  logoBadge: {
+    width: 64, height: 64, borderRadius: 18,
+    backgroundColor: T.green,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    shadowColor: T.green, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 10, elevation: 6,
+  },
   logoLetters: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
-  appName:     { fontSize: 24, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  tagline:     { fontSize: 11, color: C.textMuted, marginTop: 4, letterSpacing: 0.6,
+  appName:     { fontSize: 24, fontWeight: '800', color: T.text, letterSpacing: -0.3 },
+  tagline:     { fontSize: 11, color: T.textMuted, marginTop: 4, letterSpacing: 0.6,
                  textTransform: 'uppercase' },
 
   // Mode toggle
   modeToggle: {
     flexDirection: 'row',
-    backgroundColor: C.surface,
+    backgroundColor: T.surface2,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: T.border,
     padding: 4,
     marginBottom: 28,
   },
   modeBtn:           { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
-  modeBtnActive:     { backgroundColor: C.green },
-  modeBtnText:       { fontSize: 14, fontWeight: '600', color: C.textMuted },
+  modeBtnActive:     { backgroundColor: T.green },
+  modeBtnText:       { fontSize: 14, fontWeight: '600', color: T.textMuted },
   modeBtnTextActive: { color: '#fff', fontWeight: '700' },
 
   // Form
   form:       { gap: 4 },
   fieldGroup: { marginBottom: 16 },
-  label:      { fontSize: 11, fontWeight: '600', color: C.textMuted, marginBottom: 7,
+  label:      { fontSize: 11, fontWeight: '600', color: T.textMuted, marginBottom: 7,
                 textTransform: 'uppercase', letterSpacing: 0.6 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.surface,
+    backgroundColor: T.surface,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: T.border,
     borderRadius: 12,
     paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   inputIcon: { marginRight: 8 },
-  input:     { flex: 1, color: C.text, fontSize: 15, paddingVertical: 13 },
+  input:     { flex: 1, color: T.text, fontSize: 15, paddingVertical: 13 },
   eyeBtn:    { padding: 6 },
 
   // Error
@@ -308,21 +292,31 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: 'rgba(239,68,68,0.08)',
+    backgroundColor: T.redGlow,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
+    borderColor: 'rgba(220,38,38,0.20)',
     borderRadius: 10,
     padding: 11,
     marginBottom: 10,
   },
-  errorText: { flex: 1, color: C.error, fontSize: 13, lineHeight: 18 },
+  errorText: { flex: 1, color: T.red, fontSize: 13, lineHeight: 18 },
 
   // Submit
-  submitBtn:     { backgroundColor: C.green, borderRadius: 13, paddingVertical: 15,
-                   alignItems: 'center', marginTop: 8 },
+  submitBtn: {
+    backgroundColor: T.green,
+    borderRadius: 13,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: T.green,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.30,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   // Switch hint
   switchHint:     { alignItems: 'center', marginTop: 20 },
-  switchHintText: { color: C.textMuted, fontSize: 13 },
+  switchHintText: { color: T.textMuted, fontSize: 13 },
 });

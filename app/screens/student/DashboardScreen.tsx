@@ -77,7 +77,6 @@ function timeAgo(isoString: string): string {
   return 'Just now';
 }
 
-/** Format a Date to a readable label e.g. "April 10, 2026 · 5:00 PM" */
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString('en-PH', {
@@ -87,7 +86,6 @@ function formatDateTime(iso: string): string {
   });
 }
 
-/** Break a total-seconds value into { h, m, s } */
 function secondsToHMS(total: number) {
   const s = total % 60;
   const m = Math.floor(total / 60) % 60;
@@ -99,7 +97,6 @@ const pad = (n: number) => String(Math.max(0, n)).padStart(2, '0');
 
 // =============================================================================
 // SECTION 1 — VOTING COUNTDOWN
-// Driven by useSettings(). Shows different states depending on votingStatus.
 // =============================================================================
 
 const VotingCountdown: React.FC = () => {
@@ -108,45 +105,35 @@ const VotingCountdown: React.FC = () => {
   const [secondsUntil, setSecondsUntil]       = useState(0);
   const progressAnim                          = useRef(new Animated.Value(0)).current;
 
-  // Tick every second — recalculate from the real end/start times
   useEffect(() => {
     if (!settings) return;
-
     const tick = () => {
       const now = Date.now();
-
       if (settings.voting_end_time) {
         const end  = new Date(settings.voting_end_time).getTime();
         const left = Math.max(0, Math.floor((end - now) / 1000));
         setSecondsLeft(left);
-
-        // Progress bar: fraction of window elapsed
         if (settings.voting_start_time) {
           const start    = new Date(settings.voting_start_time).getTime();
           const total    = end - start;
           const elapsed  = now - start;
           const fraction = Math.min(1, Math.max(0, elapsed / total));
           Animated.timing(progressAnim, {
-            toValue: fraction,
-            duration: 500,
-            useNativeDriver: false,
+            toValue: fraction, duration: 500, useNativeDriver: false,
           }).start();
         }
       }
-
       if (settings.voting_start_time) {
         const start = new Date(settings.voting_start_time).getTime();
         const until = Math.max(0, Math.floor((start - now) / 1000));
         setSecondsUntil(until);
       }
     };
-
-    tick(); // immediate
+    tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [settings]);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <View style={countdownStyles.wrapper}>
@@ -156,7 +143,6 @@ const VotingCountdown: React.FC = () => {
     );
   }
 
-  // ── Unconfigured ───────────────────────────────────────────────────────────
   if (votingStatus === 'unconfigured') {
     return (
       <View style={countdownStyles.wrapper}>
@@ -169,7 +155,6 @@ const VotingCountdown: React.FC = () => {
     );
   }
 
-  // ── Not started yet — count UP to start ───────────────────────────────────
   if (votingStatus === 'not_started') {
     const { h, m, s } = secondsToHMS(secondsUntil);
     return (
@@ -203,7 +188,6 @@ const VotingCountdown: React.FC = () => {
     );
   }
 
-  // ── Ended ──────────────────────────────────────────────────────────────────
   if (votingStatus === 'ended') {
     return (
       <View style={countdownStyles.wrapper}>
@@ -214,9 +198,7 @@ const VotingCountdown: React.FC = () => {
             <React.Fragment key={i}>
               <View style={countdownStyles.timeBlock}>
                 <Text style={[countdownStyles.timeValue, { color: COLORS.textMuted }]}>{v}</Text>
-                <Text style={countdownStyles.timeUnit}>
-                  {['Hrs', 'Min', 'Sec'][i]}
-                </Text>
+                <Text style={countdownStyles.timeUnit}>{['Hrs', 'Min', 'Sec'][i]}</Text>
               </View>
               {i < 2 && <Text style={countdownStyles.timeSeparator}>:</Text>}
             </React.Fragment>
@@ -234,11 +216,9 @@ const VotingCountdown: React.FC = () => {
     );
   }
 
-  // ── Active — count DOWN to end ─────────────────────────────────────────────
   const { h, m, s } = secondsToHMS(secondsLeft);
   const progressWidth = progressAnim.interpolate({
-    inputRange:  [0, 1],
-    outputRange: ['0%', '100%'],
+    inputRange: [0, 1], outputRange: ['0%', '100%'],
   });
 
   return (
@@ -274,45 +254,33 @@ const VotingCountdown: React.FC = () => {
 
 // =============================================================================
 // SECTION 2 — VOTER TURNOUT DASHBOARD
-// PBB-style turnout board: donut summary + college participation ranking.
-// Uses dummy data — replace DUMMY_TURNOUT with real data when backend ready.
-// Hidden entirely when show_live_results = false.
 // =============================================================================
 
-// TODO: replace with real data from Supabase (e.g. a Colleges + Votes join)
 const DUMMY_TURNOUT = {
-  totalVoters:  5255,
-  totalVoted:   3121,
-  asOf:         'Apr 15, 2026 · 08:02 PM',
+  totalVoters: 5255,
+  totalVoted:  3121,
+  asOf:        'Apr 15, 2026 · 08:02 PM',
   colleges: [
-    { name: 'CON',       pct: 84.9, voted: 636,  total: 749,  color: '#16A34A' },
-    { name: 'CEAS/CCJE', pct: 63.9, voted: 478,  total: 748,  color: '#1D4ED8' },
-    { name: 'CBEAM',     pct: 59.9, voted: 401,  total: 669,  color: '#B45309' },
-    { name: 'CIHTM',     pct: 48.6, voted: 312,  total: 642,  color: '#7C3AED' },
-    { name: 'CITE',      pct: 41.2, voted: 289,  total: 702,  color: '#ff0000' },
-    { name: 'CCAFS',     pct: 37.8, voted: 204,  total: 540,  color: '#4726dc' },
-    { name: 'CAS',       pct: 29.3, voted: 183,  total: 625,  color: '#D97706' },
-    { name: 'COM',       pct: 22.1, voted: 118,  total: 533,  color: '#6D28D9' },
+    { name: 'CON',       pct: 84.9, voted: 636, total: 749,  color: '#16A34A' },
+    { name: 'CEAS/CCJE', pct: 63.9, voted: 478, total: 748,  color: '#1D4ED8' },
+    { name: 'CBEAM',     pct: 59.9, voted: 401, total: 669,  color: '#B45309' },
+    { name: 'CIHTM',     pct: 48.6, voted: 312, total: 642,  color: '#7C3AED' },
+    { name: 'CITE',      pct: 41.2, voted: 289, total: 702,  color: '#DC2626' },
+    { name: 'CCAFS',     pct: 37.8, voted: 204, total: 540,  color: '#4726DC' },
+    { name: 'CAS',       pct: 29.3, voted: 183, total: 625,  color: '#D97706' },
+    { name: 'COM',       pct: 22.1, voted: 118, total: 533,  color: '#6D28D9' },
   ],
 };
 
-// ── Donut ring drawn with two arcs (no chart library needed) ─────────────────
 const DonutRing: React.FC<{ pct: number; size: number; stroke: number }> = ({ pct, size, stroke }) => {
-  const r      = (size - stroke) / 2;
-  const cx     = size / 2;
-  const circ   = 2 * Math.PI * r;
-  const filled = (pct / 100) * circ;
-
   return (
     <View style={{ width: size, height: size }}>
       <Animated.View>
-        {/* SVG-less approach: two concentric Views with border */}
         <View style={{
           width: size, height: size, borderRadius: size / 2,
-          borderWidth: stroke, borderColor: 'rgba(255,255,255,0.08)',
+          borderWidth: stroke, borderColor: COLORS.border,
           position: 'absolute',
         }} />
-        {/* Filled arc approximation using rotation trick */}
         <View style={{
           width: size, height: size, borderRadius: size / 2,
           borderWidth: stroke,
@@ -335,7 +303,6 @@ const LiveVotingBoard: React.FC = () => {
   const topCollege = colleges[0];
   const rest       = colleges.slice(1);
 
-  // Pair remaining colleges into rows of 2
   const rows: typeof rest[] = [];
   for (let i = 0; i < rest.length; i += 2) {
     rows.push(rest.slice(i, i + 2));
@@ -343,7 +310,6 @@ const LiveVotingBoard: React.FC = () => {
 
   return (
     <View>
-      {/* ── Header pill ── */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
         <Text style={[shared.sectionTitle, { flex: 1 }]}>Voter Turnout</Text>
         <View style={liveStyles.livePill}>
@@ -352,17 +318,14 @@ const LiveVotingBoard: React.FC = () => {
         </View>
       </View>
 
-      {/* ── Summary card ── */}
+      {/* Summary card */}
       <View style={[shared.card, { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 }]}>
-        {/* Donut */}
         <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center' }}>
           <DonutRing pct={overallPct} size={80} stroke={10} />
           <View style={{ position: 'absolute', alignItems: 'center' }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.green }}>{overallPct}%</Text>
           </View>
         </View>
-
-        {/* Stats */}
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
             SG Elections 2025–2026
@@ -379,7 +342,7 @@ const LiveVotingBoard: React.FC = () => {
         </View>
       </View>
 
-      {/* ── #1 College featured card ── */}
+      {/* #1 College featured card */}
       <View style={[shared.card, {
         flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10,
         borderColor: COLORS.green, borderWidth: 1.5,
@@ -395,13 +358,13 @@ const LiveVotingBoard: React.FC = () => {
         </View>
 
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: 2 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 2 }}>
             {topCollege.name}
           </Text>
           <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 6 }}>
             {topCollege.pct}% participation · {topCollege.voted.toLocaleString()} / {topCollege.total.toLocaleString()}
           </Text>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, height: 5, overflow: 'hidden' }}>
+          <View style={{ backgroundColor: COLORS.border, borderRadius: 4, height: 5, overflow: 'hidden' }}>
             <View style={{ width: `${topCollege.pct}%`, height: '100%', backgroundColor: COLORS.green, borderRadius: 4 }} />
           </View>
         </View>
@@ -415,7 +378,7 @@ const LiveVotingBoard: React.FC = () => {
         </View>
       </View>
 
-      {/* ── Remaining colleges in 2-col grid ── */}
+      {/* Remaining colleges in 2-col grid */}
       {rows.map((pair, ri) => (
         <View key={ri} style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
           {pair.map((col, ci) => {
@@ -433,7 +396,7 @@ const LiveVotingBoard: React.FC = () => {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }} numberOfLines={1}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.text }} numberOfLines={1}>
                       {col.name}
                     </Text>
                     <Text style={{ fontSize: 10, color: COLORS.textMuted }}>
@@ -441,13 +404,13 @@ const LiveVotingBoard: React.FC = () => {
                     </Text>
                   </View>
                   <View style={{
-                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    backgroundColor: COLORS.bgElevated,
                     borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
                   }}>
                     <Text style={{ fontSize: 11, fontWeight: '600', color: COLORS.textMuted }}>#{rank}</Text>
                   </View>
                 </View>
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, height: 4, overflow: 'hidden' }}>
+                <View style={{ backgroundColor: COLORS.border, borderRadius: 3, height: 4, overflow: 'hidden' }}>
                   <View style={{ width: `${col.pct}%`, height: '100%', backgroundColor: col.color, borderRadius: 3 }} />
                 </View>
                 <Text style={{ fontSize: 10, color: COLORS.textMuted }}>
@@ -540,7 +503,7 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
                 <View style={[
                   pStyles.barFill,
                   { width: `${pct}%` },
-                  isMyVote  && { backgroundColor: 'rgba(34,197,94,0.45)' },
+                  isMyVote  && { backgroundColor: 'rgba(27,98,53,0.30)' },
                   isLeading && { backgroundColor: COLORS.green },
                 ]} />
               </View>
@@ -579,26 +542,26 @@ const pStyles = {
   optionBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingVertical: 11, paddingHorizontal: 14, marginBottom: 8,
-    borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
+    borderRadius: 10, backgroundColor: COLORS.bgElevated,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   optionRadio: {
     width: 16, height: 16, borderRadius: 8,
     borderWidth: 2, borderColor: COLORS.textMuted, marginRight: 10,
   },
-  optionText:   { color: '#fff', fontSize: 14, flex: 1 },
+  optionText:   { color: COLORS.text, fontSize: 14, flex: 1 },
   resultRow:    { marginBottom: 12 },
   resultHeader: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     alignItems: 'center' as const, marginBottom: 5,
   },
-  resultLabel:  { color: '#fff', fontSize: 13, fontWeight: '500' as const, flex: 1 },
+  resultLabel:  { color: COLORS.text, fontSize: 13, fontWeight: '500' as const, flex: 1 },
   resultPct:    { color: COLORS.textMuted, fontSize: 13, fontWeight: '600' as const, marginLeft: 8 },
   barTrack: {
-    height: 6, backgroundColor: 'rgba(255,255,255,0.07)',
+    height: 6, backgroundColor: COLORS.bgElevated,
     borderRadius: 4, overflow: 'hidden' as const, marginBottom: 4,
   },
-  barFill:     { height: 6, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
+  barFill:     { height: 6, borderRadius: 4, backgroundColor: COLORS.border },
   resultCount: { fontSize: 11, color: COLORS.textMuted },
   totalText:   { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
 };
@@ -606,8 +569,6 @@ const pStyles = {
 // =============================================================================
 // POST CARD
 // =============================================================================
-
-// ─── Single comment row (supports one level of replies) ───────────────────────
 
 const CommentRow: React.FC<{
   comment: CommentType;
@@ -669,7 +630,6 @@ const CommentRow: React.FC<{
         </View>
       </View>
 
-      {/* Reply input */}
       {replyVisible && (
         <View style={[feedStyles.commentInput, { marginLeft: 28, marginTop: 6 }]}>
           <View style={feedStyles.commentAvatar}>
@@ -679,7 +639,7 @@ const CommentRow: React.FC<{
             <TextInput
               style={feedStyles.commentInputText}
               placeholder="Write a reply…"
-              placeholderTextColor="#AAAAAA"
+              placeholderTextColor={COLORS.textMuted}
               value={replyDraft}
               onChangeText={setReplyDraft}
               multiline
@@ -689,13 +649,12 @@ const CommentRow: React.FC<{
           <TouchableOpacity style={feedStyles.commentSendBtn} onPress={handleReply} disabled={isSending}>
             {isSending
               ? <ActivityIndicator size={12} color={COLORS.green} />
-              : <Text style={{ fontSize: 14 }}>↑</Text>
+              : <Text style={{ fontSize: 14, color: '#fff' }}>↑</Text>
             }
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Nested replies (depth 1 only) */}
       {comment.replies.map((reply, idx) => (
         <View key={reply.id} style={{ marginTop: idx === 0 ? 8 : 6 }}>
           <CommentRow comment={reply} userId={userId} postId={postId} depth={1} />
@@ -705,8 +664,6 @@ const CommentRow: React.FC<{
   );
 };
 
-// ─── Post card ────────────────────────────────────────────────────────────────
-
 const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [draftComment, setDraftComment]       = useState('');
@@ -715,7 +672,6 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
   const authorInitials = toInitials(authorLabel);
   const roleLabel      = 'Official';
 
-  // ── Likes ──────────────────────────────────────────────────────────────────
   const { data: likesData }              = useLikes(post.id, userId);
   const { mutateAsync: toggleLike, isPending: isTogglingLike } = useToggleLike(post.id);
 
@@ -732,7 +688,6 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
     }
   };
 
-  // ── Comments ───────────────────────────────────────────────────────────────
   const { data: comments = [], isLoading: commentsLoading } = useComments(post.id);
   const { mutateAsync: createComment, isPending: isSendingComment } = useCreateComment(post.id);
 
@@ -751,7 +706,6 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
 
   return (
     <View style={feedStyles.postCard}>
-      {/* ── Author header ── */}
       <View style={feedStyles.postHeader}>
         <View style={feedStyles.avatar}>
           <Text style={feedStyles.avatarText}>{authorInitials}</Text>
@@ -761,7 +715,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
           <Text style={feedStyles.postTime}>{roleLabel} · {timeAgo(post.created_at)}</Text>
         </View>
         <View style={[shared.badge, {
-          backgroundColor: post.type === 'poll' ? COLORS.greenGlow : 'rgba(255,255,255,0.05)',
+          backgroundColor: post.type === 'poll' ? COLORS.greenGlow : COLORS.bgElevated,
         }]}>
           <Text style={[shared.badgeText, { color: post.type === 'poll' ? COLORS.green : COLORS.textMuted }]}>
             {post.type === 'poll' ? 'Poll' : 'Notice'}
@@ -775,33 +729,24 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
         : null}
       {post.type === 'poll' ? <PollVoter post={post} userId={userId} /> : null}
 
-      {/* ── Like & comment buttons ── */}
       <View style={feedStyles.postActions}>
-        <TouchableOpacity
-          style={feedStyles.postAction}
-          onPress={handleLike}
-          disabled={isTogglingLike}
-        >
+        <TouchableOpacity style={feedStyles.postAction} onPress={handleLike} disabled={isTogglingLike}>
           <Ionicons
             name={hasLiked ? 'heart' : 'heart-outline'}
             size={18}
-            color={hasLiked ? '#22c55e' : '#ffffff'}
+            color={hasLiked ? COLORS.green : COLORS.textSub}
           />
           <Text style={feedStyles.postActionText}>{likeCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={feedStyles.postAction}
-          onPress={() => setCommentsVisible(v => !v)}
-        >
-          <Ionicons name="chatbubble-outline" size={18} color="#ffffff" />
+        <TouchableOpacity style={feedStyles.postAction} onPress={() => setCommentsVisible(v => !v)}>
+          <Ionicons name="chatbubble-outline" size={18} color={COLORS.textSub} />
           <Text style={feedStyles.postActionText}>
             {totalCommentCount} {totalCommentCount === 1 ? 'Comment' : 'Comments'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Comment thread ── */}
       {commentsVisible && (
         <View style={feedStyles.commentSection}>
           {commentsLoading ? (
@@ -816,7 +761,6 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
             ))
           )}
 
-          {/* New top-level comment input */}
           <View style={feedStyles.commentInput}>
             <View style={feedStyles.commentAvatar}>
               <Text style={feedStyles.commentAvatarText}>AN</Text>
@@ -825,7 +769,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
               <TextInput
                 style={feedStyles.commentInputText}
                 placeholder="Add a comment…"
-                placeholderTextColor="#AAAAAA"
+                placeholderTextColor={COLORS.textMuted}
                 value={draftComment}
                 onChangeText={setDraftComment}
                 multiline
@@ -838,7 +782,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
             >
               {isSendingComment
                 ? <ActivityIndicator size={12} color={COLORS.green} />
-                : <Text style={{ fontSize: 14 }}>↑</Text>
+                : <Text style={{ fontSize: 14, color: '#fff' }}>↑</Text>
               }
             </TouchableOpacity>
           </View>
@@ -883,7 +827,7 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
             <Ionicons
               name={tab.icon}
               size={16}
-              color={activeTab === tab.key ? '#fff' : '#9ca3af'}
+              color={activeTab === tab.key ? COLORS.green : COLORS.textMuted}
               style={{ marginRight: 6 }}
             />
             <Text style={[feedStyles.tabText, activeTab === tab.key && feedStyles.tabTextActive]}>
@@ -925,7 +869,6 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
 
 // =============================================================================
 // MAIN SCREEN
-// The live results section is gated behind show_live_results from SystemSettings.
 // =============================================================================
 
 type SectionKey = 'countdown' | 'live' | 'feed';
@@ -936,16 +879,14 @@ const SECTIONS: { type: SectionKey }[] = [
 ];
 
 export default function DashboardScreen() {
-  const [userId, setUserId]         = useState<string | null>(null);
+  const [userId, setUserId]             = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshKey, setRefreshKey]     = useState(0);
-  const { settings, isLoading: settingsLoading } = useSettings();
+  const { settings } = useSettings();
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Bump refreshKey to force child hooks to re-mount and re-fetch
     setRefreshKey(k => k + 1);
-    // Small delay so the spinner feels intentional
     await new Promise(res => setTimeout(res, 800));
     setIsRefreshing(false);
   };
@@ -964,7 +905,6 @@ export default function DashboardScreen() {
         return <VotingCountdown />;
 
       case 'live':
-        // Hide the whole section if admin has disabled live results
         if (settings !== null && settings.show_live_results === false) return null;
         return (
           <>
@@ -987,7 +927,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={screenStyles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
         <View style={screenStyles.header}>
           <View>
@@ -1005,7 +945,7 @@ export default function DashboardScreen() {
                 : <Ionicons name="refresh-outline" size={20} color={COLORS.green} />
               }
             </TouchableOpacity>
-            <Ionicons name="person-circle-outline" size={22} color="#fff" />
+            <Ionicons name="person-circle-outline" size={22} color={COLORS.green} />
             <Text style={screenStyles.profileBtn}>LightOrDark</Text>
           </View>
         </View>

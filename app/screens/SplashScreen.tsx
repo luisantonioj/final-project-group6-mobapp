@@ -3,19 +3,6 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Plays a 3-step entrance animation, then replaces itself with either
  * 'Login' or 'App' depending on whether a session already exists.
- *
- * ANIMATION SEQUENCE (all using React Native's built-in Animated API):
- *   0 ms  — screen mounts, everything invisible / scaled down
- *   200ms — logo fades in + scales up (spring)
- *   600ms — title text fades in + slides up
- *   900ms — loading bar fills from 0% to 100% over 1400ms
- *   2300ms — navigate away (fade transition)
- *
- * CUSTOMISATION:
- *   • Swap the "AQ" text logo for an <Image> once the real logo asset is ready:
- *       <Image source={require('../../assets/images/logoCrop.png')}
- *              style={{ width: 80, height: 80 }} resizeMode="contain" />
- *   • Adjust TOTAL_DURATION to speed up / slow down the sequence.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import React, { useEffect, useRef } from 'react';
@@ -26,9 +13,10 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
-import { StatusBar }  from 'expo-status-bar';
-import { useRoute }   from '@react-navigation/native';
+import { StatusBar }    from 'expo-status-bar';
+import { useRoute }     from '@react-navigation/native';
 import { useAuthStore } from '../stores/authStore';
+import { T }            from '../theme';
 
 const { width } = Dimensions.get('window');
 const TOTAL_DURATION = 2400;
@@ -37,7 +25,6 @@ export function SplashScreen() {
   const route  = useRoute();
   const { setSplashReady } = useAuthStore();
 
-  // Animated values
   const logoOpacity     = useRef(new Animated.Value(0)).current;
   const logoScale       = useRef(new Animated.Value(0.6)).current;
   const titleOpacity    = useRef(new Animated.Value(0)).current;
@@ -46,7 +33,6 @@ export function SplashScreen() {
   const screenOpacity   = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Step 1 — Logo entrance
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1, duration: 500, delay: 200, useNativeDriver: true,
@@ -57,7 +43,6 @@ export function SplashScreen() {
       }),
     ]).start();
 
-    // Step 2 — Title entrance
     Animated.parallel([
       Animated.timing(titleOpacity, {
         toValue: 1, duration: 450, delay: 650, useNativeDriver: true,
@@ -67,19 +52,17 @@ export function SplashScreen() {
       }),
     ]).start();
 
-    // Step 3 — Loading bar
     Animated.timing(barWidth, {
       toValue: 1, duration: 1300, delay: 900, useNativeDriver: false,
     }).start();
 
-    // Step 4 — Fade out + signal RootNavigator that splash is done
     const timer = setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0, duration: 300, useNativeDriver: true,
       }).start(() => {
-    console.log('splash animation done, setting splashReady');
-    setSplashReady(true); // ✅ no function in params
-    });
+        console.log('splash animation done, setting splashReady');
+        setSplashReady(true);
+      });
     }, TOTAL_DURATION);
 
     return () => clearTimeout(timer);
@@ -92,7 +75,7 @@ export function SplashScreen() {
 
   return (
     <Animated.View style={[s.container, { opacity: screenOpacity }]}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* ── Logo ── */}
       <Animated.View style={[s.logoWrap, {
@@ -125,7 +108,7 @@ export function SplashScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0F0A',
+    backgroundColor: T.bg,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 20,
@@ -137,11 +120,14 @@ const s = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 28,
-    backgroundColor: '#0F6E56',
+    backgroundColor: T.green,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#22C55E',
+    shadowColor: T.green,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.30,
+    shadowRadius: 14,
+    elevation: 8,
   },
   logoLetters: {
     fontSize: 36,
@@ -152,12 +138,12 @@ const s = StyleSheet.create({
   appName: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F0FFF0',
+    color: T.text,
     letterSpacing: -0.5,
   },
   tagline: {
     fontSize: 12,
-    color: '#4B6B4B',
+    color: T.textMuted,
     letterSpacing: 0.8,
     marginTop: 4,
     textTransform: 'uppercase',
@@ -167,13 +153,13 @@ const s = StyleSheet.create({
     bottom: 60,
     width: width * 0.45,
     height: 3,
-    backgroundColor: '#1E2E1E',
+    backgroundColor: T.border,
     borderRadius: 99,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#22C55E',
+    backgroundColor: T.green,
     borderRadius: 99,
   },
 });

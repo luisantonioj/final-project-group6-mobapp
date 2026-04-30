@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { AdminDashboardScreen }  from '../screens/admin/AdminDashboardScreen';
 import { AdminCandidatesScreen } from '../screens/admin/AdminCandidatesScreen';
 import { AdminResultsScreen }    from '../screens/admin/AdminResultsScreen';
-import { AdminSettingsScreen }   from '../screens/admin/AdminSettingsScreen'; 
+import { AdminSettingsScreen }   from '../screens/admin/AdminSettingsScreen';
+import { T } from '../theme';
 
 import type { AdminTabParamList } from './types';
 
@@ -15,11 +16,11 @@ export function AdminNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor:   '#0F6E56',
-        tabBarInactiveTintColor: '#4B6B4B',
+        tabBarActiveTintColor:   T.green,
+        tabBarInactiveTintColor: T.textMuted,
         tabBarStyle: {
-          backgroundColor: '#111811',
-          borderTopColor:  '#1E2E1E',
+          backgroundColor: T.surface,
+          borderTopColor:  T.border,
           borderTopWidth:  1,
         },
         headerShown: false,
@@ -34,10 +35,10 @@ export function AdminNavigator() {
         },
       })}
     >
-      <Tab.Screen name="AdminDashboard"  component={AdminDashboardScreen}  options={{ title: 'Overview' }}    />
-      <Tab.Screen name="AdminCandidates" component={AdminCandidatesScreen} options={{ title: 'Candidates' }}  />
-      <Tab.Screen name="AdminResults"    component={AdminResultsScreen}    options={{ title: 'Results' }}     />
-      <Tab.Screen name="AdminSettings"   component={AdminSettingsScreen}   options={{ title: 'Settings' }}    />
+      <Tab.Screen name="AdminDashboard"  component={AdminDashboardScreen}  options={{ title: 'Overview' }}   />
+      <Tab.Screen name="AdminCandidates" component={AdminCandidatesScreen} options={{ title: 'Candidates' }} />
+      <Tab.Screen name="AdminResults"    component={AdminResultsScreen}    options={{ title: 'Results' }}    />
+      <Tab.Screen name="AdminSettings"   component={AdminSettingsScreen}   options={{ title: 'Settings' }}   />
     </Tab.Navigator>
   );
 }
