@@ -309,7 +309,7 @@ const LiveVotingBoard: React.FC = () => {
   }
 
   return (
-    <View>
+    <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
         <Text style={[S.shared.sectionTitle, { flex: 1 }]}>Voter Turnout</Text>
         <View style={S.live.livePill}>
