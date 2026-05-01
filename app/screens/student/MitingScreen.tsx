@@ -3,11 +3,13 @@
  */
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity,
+  View, Text, Pressable, FlatList,
   TextInput, StyleSheet, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Animated, StatusBar,
+  Animated, StatusBar, Platform,
 } from 'react-native';
-import { SafeAreaView }     from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { Ionicons }         from '@expo/vector-icons';
 import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../../hooks/useMiting';
 import { useAuthStore }     from '../../stores/authStore';
@@ -43,7 +45,14 @@ function QuestionCard({ q, index, totalCount, hasUpvoted, onUpvote, userId, C, s
 
   return (
     <View style={[s.questionCard, isTop && s.questionCardTop]}>
-      <TouchableOpacity style={[s.upvoteBtn, hasUpvoted && s.upvoteBtnActive]} onPress={handlePress} activeOpacity={0.7}>
+      <Pressable
+        style={({ pressed }) => [
+          s.upvoteBtn,
+          hasUpvoted && s.upvoteBtnActive,
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={handlePress}
+      >
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <Ionicons
             name={hasUpvoted ? 'arrow-up-circle' : 'arrow-up-circle-outline'}
@@ -51,7 +60,7 @@ function QuestionCard({ q, index, totalCount, hasUpvoted, onUpvote, userId, C, s
           />
         </Animated.View>
         <Text style={[s.upvoteCount, hasUpvoted && { color: C.greenBright }]}>{q.upvote_count}</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <View style={{ flex: 1 }}>
         {isTop && <View style={s.topBadge}><Text style={s.topBadgeText}>🔥 Top Question</Text></View>}
@@ -70,6 +79,8 @@ function QuestionCard({ q, index, totalCount, hasUpvoted, onUpvote, userId, C, s
 export function MitingScreen() {
   const C      = useThemeColors();
   const isDark = useThemeStore(st => st.isDark);
+  const tabBarHeight = useBottomTabBarHeight();
+  const keyboardHeight = useKeyboardHeight();
   const s      = useMemo(() => makeStyles(C), [C]);
 
   const { userProfile } = useAuthStore();
@@ -160,7 +171,7 @@ export function MitingScreen() {
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
+      <View style={{ flex: 1, paddingBottom: Platform.OS === 'ios' ? keyboardHeight : 0 }}>
 
         {/* ── Header ── */}
         <View style={s.header}>
@@ -181,8 +192,11 @@ export function MitingScreen() {
         ) : (
           <FlatList
             data={questions ?? []} keyExtractor={item => item.id}
-            contentContainerStyle={s.list} showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={[s.list, { paddingBottom: tabBarHeight + 8 }]}
+            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             ListEmptyComponent={
               <View style={s.emptyState}>
                 <Ionicons name="chatbubble-ellipses-outline" size={36} color={C.textMuted} />
@@ -218,17 +232,22 @@ export function MitingScreen() {
             />
             <Text style={[s.charCount, { color: charColor }]}>{draft.length}/280</Text>
           </View>
-          <TouchableOpacity
-            style={[s.sendBtn, (!draft.trim() || submitting) && s.sendBtnDisabled]}
-            onPress={handleSubmit} disabled={!draft.trim() || submitting} activeOpacity={0.8}
+          <Pressable
+            style={({ pressed }) => [
+              s.sendBtn,
+              (!draft.trim() || submitting) && s.sendBtnDisabled,
+              draft.trim() && !submitting && pressed && { opacity: 0.85 },
+            ]}
+            onPress={handleSubmit}
+            disabled={!draft.trim() || submitting}
           >
             {submitting
               ? <ActivityIndicator size="small" color="#fff" />
               : <Ionicons name="send" size={18} color="#fff" />
             }
-          </TouchableOpacity>
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }

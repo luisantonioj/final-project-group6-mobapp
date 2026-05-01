@@ -3,11 +3,11 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
+  Pressable,
   StatusBar,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { makeStyles } from './AdminResultsScreen.styles';
 import { useThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
@@ -203,15 +203,20 @@ export function AdminResultsScreen() {
           const isActive = tab === activeTab;
           const color    = COLLEGE_COLORS[tab];
           return (
-            <TouchableOpacity
+            <Pressable
               key={tab}
               onPress={() => setActiveTab(tab)}
-              style={[styles.tab, isActive && styles.tabActive, isActive && color ? { borderBottomColor: color } : {}]}
+              style={({ pressed }) => [
+                styles.tab,
+                isActive && styles.tabActive,
+                isActive && color ? { borderBottomColor: color } : {},
+                pressed && { opacity: 0.85 },
+              ]}
             >
               <Text style={[styles.tabText, isActive && styles.tabTextActive, isActive && color ? { color } : {}]}>
                 {tab}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </ScrollView>

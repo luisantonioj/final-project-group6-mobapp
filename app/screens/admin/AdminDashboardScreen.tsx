@@ -29,9 +29,10 @@ import React, {
   useState, useCallback, useMemo, createContext, useContext, useEffect,
 } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput, Modal,
-  ScrollView, StatusBar, Platform, KeyboardAvoidingView, Alert, ActivityIndicator,
+  View, Text, FlatList, Pressable, TextInput, Modal,
+  ScrollView, StatusBar, Platform, Alert, ActivityIndicator,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { usePosts, useCreatePost, useUpdatePost, useDeletePost } from '../../hooks/usePosts';
@@ -180,21 +181,23 @@ const PostRow: React.FC<{
       <View style={s.postRowFooter}>
         <Text style={s.postRowTime}>{timeAgo(post.created_at)}</Text>
         <View style={s.postRowActions}>
-          <TouchableOpacity style={s.actionBtn} onPress={() => onEdit(post)} activeOpacity={0.7}>
+          <Pressable
+            style={({ pressed }) => [s.actionBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => onEdit(post)}
+          >
             <Ionicons name="pencil-outline" size={12} color={C.textSub} />
             <Text style={s.actionBtnText}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.actionBtn, s.actionBtnDanger]}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [s.actionBtn, s.actionBtnDanger, !isDeleting && pressed && { opacity: 0.7 }]}
             onPress={handleDelete}
             disabled={isDeleting}
-            activeOpacity={0.7}
           >
             {isDeleting
               ? <ActivityIndicator size={12} color={C.red} />
               : <Ionicons name="trash-outline" size={12} color={C.red} />}
             <Text style={[s.actionBtnText, { color: C.red }]}>Delete</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -247,24 +250,38 @@ const PostModal: React.FC<{
 
   return (
     <Modal visible={state.visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={{ flex: 1 }}>
+        <Pressable style={s.backdrop} onPress={onClose} />
         <View style={s.sheet}>
           <View style={s.sheetHandle} />
           <View style={s.sheetHeader}>
             <Text style={s.sheetTitle}>{isEdit ? 'Edit Post' : 'New Post'}</Text>
-            <TouchableOpacity style={s.sheetClose} onPress={onClose}>
+            <Pressable style={({ pressed }) => [s.sheetClose, pressed && { opacity: 0.75 }]} onPress={onClose}>
               <Ionicons name="close" size={16} color={C.textMuted} />
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
-          <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={s.sheetBody}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid
+            enableAutomaticScroll
+            viewIsInsideTabBar
+            extraScrollHeight={48}
+            keyboardOpeningTime={0}
+          >
             <Text style={s.fieldLabel}>Post Type</Text>
             <View style={s.typeToggle}>
               {(['announcement', 'poll'] as const).map(t => (
-                <TouchableOpacity
+                <Pressable
                   key={t}
-                  style={[s.typeToggleBtn, form.type === t && s.typeToggleBtnActive]}
+                  style={({ pressed }) => [
+                    s.typeToggleBtn,
+                    form.type === t && s.typeToggleBtnActive,
+                    pressed && { opacity: 0.85 },
+                  ]}
                   onPress={() => setForm(f => ({ ...f, type: t }))}
                 >
                   <Ionicons
@@ -275,7 +292,7 @@ const PostModal: React.FC<{
                   <Text style={[s.typeToggleBtnText, form.type === t && s.typeToggleBtnTextActive]}>
                     {t === 'poll' ? 'Poll' : 'Announcement'}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
 
@@ -317,37 +334,36 @@ const PostModal: React.FC<{
                       onChangeText={v => updateOption(i, v)}
                     />
                     {pollOptions.length > 2 && (
-                      <TouchableOpacity style={s.pollOptionRemove} onPress={() => removeOption(i)}>
+                      <Pressable style={({ pressed }) => [s.pollOptionRemove, pressed && { opacity: 0.75 }]} onPress={() => removeOption(i)}>
                         <Ionicons name="close-circle" size={20} color={C.red} />
-                      </TouchableOpacity>
+                      </Pressable>
                     )}
                   </View>
                 ))}
-                <TouchableOpacity style={s.addOptionBtn} onPress={addOption}>
+                <Pressable style={({ pressed }) => [s.addOptionBtn, pressed && { opacity: 0.85 }]} onPress={addOption}>
                   <Ionicons name="add-circle-outline" size={16} color={C.green} />
                   <Text style={s.addOptionBtnText}>Add Option</Text>
-                </TouchableOpacity>
+                </Pressable>
               </>
             )}
 
             <View style={{ height: 16 }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           <View style={s.sheetFooter}>
-            <TouchableOpacity
-              style={s.saveBtn}
+            <Pressable
+              style={({ pressed }) => [s.saveBtn, !isSaving && pressed && { opacity: 0.85 }]}
               onPress={handleSave}
               disabled={isSaving}
-              activeOpacity={0.8}
             >
               {isSaving
                 ? <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
                 : <Ionicons name="checkmark-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />}
               <Text style={s.saveBtnText}>{isEdit ? 'Save Changes' : 'Publish Post'}</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
@@ -396,11 +412,14 @@ const MitingControlPanel: React.FC<{
           ? 'The live Q&A session is currently open. Students can submit and upvote questions.'
           : 'The live Q&A session is currently closed. Tap the button below to open it for students.'}
       </Text>
-      <TouchableOpacity
-        style={[ms.toggleBtn, isActive ? ms.toggleBtnEnd : ms.toggleBtnLive]}
+      <Pressable
+        style={({ pressed }) => [
+          ms.toggleBtn,
+          isActive ? ms.toggleBtnEnd : ms.toggleBtnLive,
+          !(isToggling || isLoading) && pressed && { opacity: 0.88 },
+        ]}
         onPress={onToggle}
         disabled={isToggling || isLoading}
-        activeOpacity={0.85}
       >
         {isToggling
           ? <ActivityIndicator color="#fff" style={{ marginRight: 10 }} />
@@ -413,7 +432,7 @@ const MitingControlPanel: React.FC<{
         <Text style={ms.toggleBtnText}>
           {isToggling ? 'Updating…' : isActive ? 'End Session' : 'Go Live'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       <View style={ms.infoRow}>
         <Ionicons name="information-circle-outline" size={14} color={C.textMuted} />
         <Text style={ms.infoText}>Students receive a notification the moment you go live.</Text>
@@ -529,17 +548,16 @@ const LiveQuestionCard: React.FC<{
               <Text style={ms.viewOnlyText}>View only</Text>
             </View>
           ) : (
-            <TouchableOpacity
-              style={ms.deleteBtn}
+            <Pressable
+              style={({ pressed }) => [ms.deleteBtn, !isDeleting && pressed && { opacity: 0.7 }]}
               onPress={handleDelete}
               disabled={isDeleting}
-              activeOpacity={0.7}
             >
               {isDeleting
                 ? <ActivityIndicator size={12} color={C.red} />
                 : <Ionicons name="trash-outline" size={12} color={C.red} />}
               <Text style={ms.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
       </View>
@@ -622,29 +640,33 @@ const PendingQuestionCard: React.FC<{
         </View>
       ) : (
         <View style={ms.approvalRow}>
-          <TouchableOpacity
-            style={ms.approveBtn}
+          <Pressable
+            style={({ pressed }) => [
+              ms.approveBtn,
+              !(isApproving || isRejecting) && pressed && { opacity: 0.85 },
+            ]}
             onPress={() => onApprove(q.id)}
             disabled={isApproving || isRejecting}
-            activeOpacity={0.8}
           >
             {isApproving
               ? <ActivityIndicator size={14} color="#fff" />
               : <Ionicons name="checkmark-outline" size={14} color="#fff" />}
             <Text style={ms.approveBtnText}>Approve</Text>
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={ms.rejectBtn}
+          <Pressable
+            style={({ pressed }) => [
+              ms.rejectBtn,
+              !(isApproving || isRejecting) && pressed && { opacity: 0.85 },
+            ]}
             onPress={() => onReject(q.id)}
             disabled={isApproving || isRejecting}
-            activeOpacity={0.8}
           >
             {isRejecting
               ? <ActivityIndicator size={14} color={C.red} />
               : <Ionicons name="close-outline" size={14} color={C.red} />}
             <Text style={ms.rejectBtnText}>Reject</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
     </View>
@@ -957,19 +979,19 @@ export function AdminDashboardScreen() {
           <Text style={s.appSub}>Admin · DLSL COMELEC</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.pill, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
-          <TouchableOpacity
+          <Pressable
             onPress={handleRefresh}
             disabled={isRefreshing}
-            style={{ padding: 4 }}
+            style={({ pressed }) => [{ padding: 4 }, !isRefreshing && pressed && { opacity: 0.7 }]}
           >
             {isRefreshing
               ? <ActivityIndicator size={18} color={C.green} />
               : <Ionicons name="refresh-outline" size={20} color={C.text} />
             }
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
+          </Pressable>
+          <Pressable onPress={toggleTheme} style={({ pressed }) => [{ paddingLeft: 12, paddingRight: 4 }, pressed && { opacity: 0.7 }]}>
             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.text} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
@@ -979,10 +1001,10 @@ export function AdminDashboardScreen() {
       {/* ── Section bar ── */}
       <View style={s.sectionBar}>
         <Text style={s.sectionLabel}>Manage Posts</Text>
-        <TouchableOpacity style={s.createBtn} onPress={openCreate} activeOpacity={0.8}>
+        <Pressable style={({ pressed }) => [s.createBtn, pressed && { opacity: 0.85 }]} onPress={openCreate}>
           <Ionicons name="add" size={16} color="#fff" />
           <Text style={s.createBtnText}>New Post</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* ── Main filter tabs (Miting tab gets pending badge) ── */}
@@ -992,11 +1014,14 @@ export function AdminDashboardScreen() {
         contentContainerStyle={s.tabRow}
       >
         {TABS.map(tab => (
-          <TouchableOpacity
+          <Pressable
             key={tab.key}
-            style={[s.tab, activeTab === tab.key && s.tabActive]}
+            style={({ pressed }) => [
+              s.tab,
+              activeTab === tab.key && s.tabActive,
+              pressed && { opacity: 0.75 },
+            ]}
             onPress={() => setActiveTab(tab.key)}
-            activeOpacity={0.7}
           >
             <Ionicons
               name={tab.icon}
@@ -1011,7 +1036,7 @@ export function AdminDashboardScreen() {
                 <Text style={mit.pendingBadgeText}>{pendingCount}</Text>
               </View>
             )}
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -1028,10 +1053,13 @@ export function AdminDashboardScreen() {
 
           {/* Sub-tabs: Live Feed | Pending */}
           <View style={mit.subTabRow}>
-            <TouchableOpacity
-              style={[mit.subTab, mitingSubTab === 'live' && mit.subTabActive]}
+            <Pressable
+              style={({ pressed }) => [
+                mit.subTab,
+                mitingSubTab === 'live' && mit.subTabActive,
+                pressed && { opacity: 0.75 },
+              ]}
               onPress={() => setMitingSubTab('live')}
-              activeOpacity={0.7}
             >
               <Ionicons
                 name="radio-outline"
@@ -1041,12 +1069,15 @@ export function AdminDashboardScreen() {
               <Text style={[mit.subTabText, mitingSubTab === 'live' && mit.subTabTextActive]}>
                 Live Feed
               </Text>
-            </TouchableOpacity>
+            </Pressable>
 
-            <TouchableOpacity
-              style={[mit.subTab, mitingSubTab === 'pending' && mit.subTabActive]}
+            <Pressable
+              style={({ pressed }) => [
+                mit.subTab,
+                mitingSubTab === 'pending' && mit.subTabActive,
+                pressed && { opacity: 0.75 },
+              ]}
               onPress={() => setMitingSubTab('pending')}
-              activeOpacity={0.7}
             >
               <Ionicons
                 name="time-outline"
@@ -1061,7 +1092,7 @@ export function AdminDashboardScreen() {
                   <Text style={mit.pendingBadgeText}>{pendingQuestions.length}</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           {/* Live Feed content */}

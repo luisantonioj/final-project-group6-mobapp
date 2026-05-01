@@ -15,7 +15,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, Pressable, StyleSheet,
   ScrollView, Modal, Animated, Image, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -66,7 +66,14 @@ const CandidateItem: React.FC<{ candidate: Candidate; selected: boolean; onSelec
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity style={[s.candidateRow, selected && s.candidateRowSelected]} onPress={handlePress} activeOpacity={0.82}>
+      <Pressable
+        style={({ pressed }) => [
+          s.candidateRow,
+          selected && s.candidateRowSelected,
+          pressed && { opacity: 0.82 },
+        ]}
+        onPress={handlePress}
+      >
         <View style={[s.candidateAvatar, selected && s.candidateAvatarSelected]}>
           {candidate.photo_url
             ? <Image source={{ uri: candidate.photo_url }} style={s.candidateAvatarImage} />
@@ -77,13 +84,13 @@ const CandidateItem: React.FC<{ candidate: Candidate; selected: boolean; onSelec
           <Text style={[s.candidateName, selected && s.candidateNameSelected]} numberOfLines={1}>{candidate.name}</Text>
           {candidate.partylist ? <Text style={s.candidateParty} numberOfLines={1}>{candidate.partylist}</Text> : null}
         </View>
-        <TouchableOpacity style={s.viewProfileBtn} onPress={onView} hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}>
+        <Pressable style={({ pressed }) => [s.viewProfileBtn, pressed && { opacity: 0.8 }]} onPress={onView} hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}>
           <Text style={s.viewProfileBtnText}>View</Text>
-        </TouchableOpacity>
+        </Pressable>
         <View style={[s.radio, selected && s.radioSelected]}>
           {selected && <View style={s.radioDot} />}
         </View>
-      </TouchableOpacity>
+      </Pressable>
     </Animated.View>
   );
 };
@@ -136,9 +143,9 @@ const ConfirmModal: React.FC<{ visible: boolean; entries: ConfirmEntry[]; onSubm
               <Text style={s.modalTitle}>Confirm Your Votes</Text>
               <Text style={s.modalSubtitle}>Review carefully — this cannot be undone.</Text>
             </View>
-            <TouchableOpacity onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Pressable onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={({ pressed }) => pressed && { opacity: 0.75 }}>
               <Ionicons name="close" size={20} color={C.textMuted} />
-            </TouchableOpacity>
+            </Pressable>
           </View>
           <ScrollView style={s.confirmScroll} showsVerticalScrollIndicator={false} bounces={false}>
             {entries.map((entry, i) => (
@@ -154,11 +161,11 @@ const ConfirmModal: React.FC<{ visible: boolean; entries: ConfirmEntry[]; onSubm
             <View style={{ height: 8 }} />
           </ScrollView>
           <View style={s.modalActions}>
-            <TouchableOpacity style={s.modalCancelBtn} onPress={onCancel}><Text style={s.modalCancelText}>Review Again</Text></TouchableOpacity>
-            <TouchableOpacity style={s.modalSubmitBtn} onPress={onSubmit}>
+            <Pressable style={({ pressed }) => [s.modalCancelBtn, pressed && { opacity: 0.85 }]} onPress={onCancel}><Text style={s.modalCancelText}>Review Again</Text></Pressable>
+            <Pressable style={({ pressed }) => [s.modalSubmitBtn, pressed && { opacity: 0.88 }]} onPress={onSubmit}>
               <Ionicons name="send" size={15} color="#fff" />
               <Text style={s.modalSubmitText}>Submit Votes</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -184,16 +191,24 @@ const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept
         <Text style={s.setupSectionHint}>Determines which college-level positions appear on your ballot. Executive Council positions are shown to all students.</Text>
         <View style={s.deptGrid}>
           {VOTER_DEPARTMENTS.map(d => (
-            <TouchableOpacity key={d} style={[s.deptChip, selectedDept === d && s.deptChipActive]} onPress={() => onSelectDept(d)} activeOpacity={0.8}>
+            <Pressable
+              key={d}
+              style={({ pressed }) => [
+                s.deptChip,
+                selectedDept === d && s.deptChipActive,
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => onSelectDept(d)}
+            >
               <Text style={[s.deptChipText, selectedDept === d && s.deptChipTextActive]}>{d}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
       </View>
 
       <View style={s.setupSection}>
         <Text style={s.setupSectionLabel}>Voter Consent *</Text>
-        <TouchableOpacity style={s.consentRow} onPress={onToggleConsent} activeOpacity={0.8}>
+        <Pressable style={({ pressed }) => [s.consentRow, pressed && { opacity: 0.85 }]} onPress={onToggleConsent}>
           <View style={[s.checkbox, consented && s.checkboxActive]}>
             {consented && <Ionicons name="checkmark" size={14} color="#fff" />}
           </View>
@@ -201,7 +216,7 @@ const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept
             I confirm that I am a registered DLSL student and I understand that my vote is{' '}
             <Text style={s.consentHighlight}>final and cannot be changed</Text> once submitted.
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {!selectedDept ? (
@@ -210,10 +225,18 @@ const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept
         <View style={s.warnBox}><Ionicons name="alert-circle-outline" size={14} color={C.amber} /><Text style={s.warnText}>Please check the consent box to continue.</Text></View>
       ) : null}
 
-      <TouchableOpacity style={[s.beginBtn, !canBegin && s.beginBtnDisabled]} onPress={onBegin} disabled={!canBegin} activeOpacity={canBegin ? 0.8 : 1}>
+      <Pressable
+        style={({ pressed }) => [
+          s.beginBtn,
+          !canBegin && s.beginBtnDisabled,
+          canBegin && pressed && { opacity: 0.88 },
+        ]}
+        onPress={onBegin}
+        disabled={!canBegin}
+      >
         <Ionicons name="chevron-forward-circle-outline" size={20} color={canBegin ? '#fff' : C.textMuted} />
         <Text style={[s.beginBtnText, !canBegin && s.beginBtnTextDisabled]}>Begin Voting</Text>
-      </TouchableOpacity>
+      </Pressable>
 
       <View style={s.setupFooter}>
         <Ionicons name="lock-closed-outline" size={12} color={C.textMuted} />
@@ -331,9 +354,9 @@ export function VoteScreen() {
         {phase === 'ballot' && (
           <>
             <View style={s.header}>
-              <TouchableOpacity style={s.backBtn} onPress={handleGoBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.75}>
+              <Pressable style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.75 }]} onPress={handleGoBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="chevron-back" size={20} color={C.textSub} />
-              </TouchableOpacity>
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Text style={s.headerTitle}>Cast Your Vote</Text>
                 <Text style={s.headerSub}>SY 2025–2026 · {selectedDept ?? 'DLSL COMELEC'}</Text>
@@ -369,13 +392,20 @@ export function VoteScreen() {
                       <Text style={s.submitHintText}>{totalPositions - selectedCount} position{totalPositions - selectedCount !== 1 ? 's' : ''} remaining</Text>
                     </View>
                   )}
-                  <TouchableOpacity style={[s.submitBtn, !allSelected && s.submitBtnDisabled]}
-                    onPress={() => allSelected && setConfirmVisible(true)} disabled={!allSelected} activeOpacity={allSelected ? 0.8 : 1}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      s.submitBtn,
+                      !allSelected && s.submitBtnDisabled,
+                      allSelected && pressed && { opacity: 0.88 },
+                    ]}
+                    onPress={() => allSelected && setConfirmVisible(true)}
+                    disabled={!allSelected}
+                  >
                     <Ionicons name="send" size={16} color={allSelected ? '#fff' : C.textMuted} />
                     <Text style={[s.submitBtnText, !allSelected && s.submitBtnTextDisabled]}>
                       {allSelected ? 'Submit My Votes' : 'Complete All Positions First'}
                     </Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 </View>
               )}
             </ScrollView>

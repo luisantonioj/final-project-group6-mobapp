@@ -12,17 +12,13 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   StyleSheet,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Platform,
-  ScrollView,
   Animated,
 } from 'react-native';
-import { SafeAreaView }  from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar }     from 'expo-status-bar';
 import { Ionicons }      from '@expo/vector-icons';
 import { supabase }      from '../utils/supabase';
@@ -93,16 +89,16 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid
+        enableAutomaticScroll
+        extraScrollHeight={48}
+        keyboardOpeningTime={0}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <ScrollView
-            contentContainerStyle={s.scroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
             {/* ── App name ── */}
             <View style={s.header}>
               <View style={s.logoBadge}>
@@ -115,15 +111,19 @@ export function LoginScreen() {
             {/* ── Mode toggle ── */}
             <View style={s.modeToggle}>
               {(['login', 'signup'] as Mode[]).map(m => (
-                <TouchableOpacity
+                <Pressable
                   key={m}
-                  style={[s.modeBtn, mode === m && s.modeBtnActive]}
+                  style={({ pressed }) => [
+                    s.modeBtn,
+                    mode === m && s.modeBtnActive,
+                    pressed && { opacity: 0.85 },
+                  ]}
                   onPress={() => switchMode(m)}
                 >
                   <Text style={[s.modeBtnText, mode === m && s.modeBtnTextActive]}>
                     {m === 'login' ? 'Log In' : 'Sign Up'}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
 
@@ -181,13 +181,13 @@ export function LoginScreen() {
                     returnKeyType="done"
                     onSubmitEditing={handleSubmit}
                   />
-                  <TouchableOpacity onPress={() => setShowPass(v => !v)} style={s.eyeBtn}>
+                  <Pressable onPress={() => setShowPass(v => !v)} style={({ pressed }) => [s.eyeBtn, pressed && { opacity: 0.7 }]}>
                     <Ionicons
                       name={showPass ? 'eye-off-outline' : 'eye-outline'}
                       size={18}
                       color={T.textMuted}
                     />
-                  </TouchableOpacity>
+                  </Pressable>
                 </View>
               </View>
 
@@ -198,11 +198,10 @@ export function LoginScreen() {
                 </View>
               )}
 
-              <TouchableOpacity
-                style={[s.submitBtn, loading && { opacity: 0.65 }]}
+              <Pressable
+                style={({ pressed }) => [s.submitBtn, loading && { opacity: 0.65 }, !loading && pressed && { opacity: 0.85 }]}
                 onPress={handleSubmit}
                 disabled={loading}
-                activeOpacity={0.8}
               >
                 {loading
                   ? <ActivityIndicator color="#fff" />
@@ -210,10 +209,10 @@ export function LoginScreen() {
                       {mode === 'login' ? 'Log In' : 'Create Account'}
                     </Text>
                 }
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
-                style={s.switchHint}
+              <Pressable
+                style={({ pressed }) => [s.switchHint, pressed && { opacity: 0.75 }]}
                 onPress={() => switchMode(mode === 'login' ? 'signup' : 'login')}
               >
                 <Text style={s.switchHintText}>
@@ -221,12 +220,10 @@ export function LoginScreen() {
                     ? "New student? Create an account"
                     : "Already registered? Log in"}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
 
             </Animated.View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

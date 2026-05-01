@@ -8,8 +8,12 @@
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
         "android.permission.RECEIVE_BOOT_COMPLETED"
-      ]
+      ],
+      "package": "com.anonymous.animoquorum"
     },
     "plugins": [
       "expo-secure-store"

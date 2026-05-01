@@ -17,7 +17,7 @@ import {
   ScrollView,
   FlatList,
   RefreshControl,
-  TouchableOpacity,
+  Pressable,
   TextInput,
   Animated,
   StatusBar,
@@ -25,6 +25,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { KeyboardAwareFlatList } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { makeStyles } from './DashboardScreen.styles';
@@ -547,19 +548,21 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
         }
 
         return (
-          <TouchableOpacity
+          <Pressable
             key={opt.id}
-            style={pStyles.optionBtn}
+            style={({ pressed }) => [
+              pStyles.optionBtn,
+              !isSubmitting && pressed && { opacity: 0.7 },
+            ]}
             onPress={() => handleVote(opt.id)}
             disabled={isSubmitting}
-            activeOpacity={0.7}
           >
             {isSubmitting && pendingOptionId === opt.id
               ? <ActivityIndicator size={14} color={C.green} style={{ marginRight: 10 }} />
               : <View style={pStyles.optionRadio} />
             }
             <Text style={pStyles.optionText}>{opt.option_text}</Text>
-          </TouchableOpacity>
+          </Pressable>
         );
       })}
       <Text style={pStyles.totalText}>
@@ -622,16 +625,16 @@ const CommentRow: React.FC<{
           <Text style={S.feed.commentText}>{comment.content}</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
             {depth === 0 && (
-              <TouchableOpacity onPress={() => setReplyVisible(v => !v)}>
+              <Pressable onPress={() => setReplyVisible(v => !v)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
                 <Text style={{ fontSize: 11, color: C.green, fontWeight: '600' }}>
                   {replyVisible ? 'Cancel' : 'Reply'}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
             {isOwn && (
-              <TouchableOpacity onPress={handleDelete}>
+              <Pressable onPress={handleDelete} style={({ pressed }) => pressed && { opacity: 0.7 }}>
                 <Text style={{ fontSize: 11, color: C.textMuted }}>Delete</Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
           </View>
         </View>
@@ -653,12 +656,19 @@ const CommentRow: React.FC<{
               autoFocus
             />
           </View>
-          <TouchableOpacity style={S.feed.commentSendBtn} onPress={handleReply} disabled={isSending}>
+          <Pressable
+            style={({ pressed }) => [
+              S.feed.commentSendBtn,
+              !isSending && pressed && { opacity: 0.85 },
+            ]}
+            onPress={handleReply}
+            disabled={isSending}
+          >
             {isSending
               ? <ActivityIndicator size={12} color={C.green} />
               : <Text style={{ fontSize: 14, color: '#fff' }}>↑</Text>
             }
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
@@ -740,21 +750,28 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
       {post.type === 'poll' ? <PollVoter post={post} userId={userId} /> : null}
 
       <View style={S.feed.postActions}>
-        <TouchableOpacity style={S.feed.postAction} onPress={handleLike} disabled={isTogglingLike}>
+        <Pressable
+          style={({ pressed }) => [S.feed.postAction, !isTogglingLike && pressed && { opacity: 0.75 }]}
+          onPress={handleLike}
+          disabled={isTogglingLike}
+        >
           <Ionicons
             name={hasLiked ? 'heart' : 'heart-outline'}
             size={18}
             color={hasLiked ? C.green : C.textSub}
           />
           <Text style={S.feed.postActionText}>{likeCount}</Text>
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity style={S.feed.postAction} onPress={() => setCommentsVisible(v => !v)}>
+        <Pressable
+          style={({ pressed }) => [S.feed.postAction, pressed && { opacity: 0.75 }]}
+          onPress={() => setCommentsVisible(v => !v)}
+        >
           <Ionicons name="chatbubble-outline" size={18} color={C.textSub} />
           <Text style={S.feed.postActionText}>
             {totalCommentCount} {totalCommentCount === 1 ? 'Comment' : 'Comments'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {commentsVisible && (
@@ -785,8 +802,11 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
                 multiline
               />
             </View>
-            <TouchableOpacity
-              style={S.feed.commentSendBtn}
+            <Pressable
+              style={({ pressed }) => [
+                S.feed.commentSendBtn,
+                !isSendingComment && pressed && { opacity: 0.85 },
+              ]}
               onPress={handleSubmitComment}
               disabled={isSendingComment}
             >
@@ -794,7 +814,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
                 ? <ActivityIndicator size={12} color={C.green} />
                 : <Text style={{ fontSize: 14, color: '#fff' }}>↑</Text>
               }
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       )}
@@ -832,9 +852,13 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
     <View>
       <View style={S.feed.tabRow}>
         {FEED_TABS.map(tab => (
-          <TouchableOpacity
+          <Pressable
             key={tab.key}
-            style={[S.feed.tab, activeTab === tab.key && S.feed.tabActive]}
+            style={({ pressed }) => [
+              S.feed.tab,
+              activeTab === tab.key && S.feed.tabActive,
+              pressed && { opacity: 0.85 },
+            ]}
             onPress={() => setActiveTab(tab.key)}
           >
             <Ionicons
@@ -846,7 +870,7 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
             <Text style={[S.feed.tabText, activeTab === tab.key && S.feed.tabTextActive]}>
               {tab.label}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
 
@@ -896,7 +920,6 @@ export default function DashboardScreen() {
   const S = useMemo(() => makeStyles(C), [C]);
   const isDark = useThemeStore(s => s.isDark);
   const toggleTheme = useThemeStore(s => s.toggleTheme);
-
   const [userId, setUserId]             = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshKey, setRefreshKey]     = useState(0);
@@ -946,29 +969,29 @@ export default function DashboardScreen() {
   return (
     <SafeAreaView style={S.screen.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <View style={{ flex: 1, backgroundColor: C.bg }}>
         <View style={S.screen.header}>
           <View>
             <Text style={S.screen.headerLogoText}>AnimoQuorum</Text>
             <Text style={S.screen.headerSub}>DLSL COMELEC · SY 2025–2026</Text>
           </View>
           <View style={S.screen.profileHeader}>
-            <TouchableOpacity
+            <Pressable
               onPress={handleRefresh}
               disabled={isRefreshing}
-              style={{ marginRight: 12, padding: 4 }}
+              style={({ pressed }) => [{ marginRight: 12, padding: 4 }, !isRefreshing && pressed && { opacity: 0.7 }]}
             >
               {isRefreshing
                 ? <ActivityIndicator size={18} color={C.green} />
                 : <Ionicons name="refresh-outline" size={20} color={C.text} />
               }
-            </TouchableOpacity>
-            <TouchableOpacity onPress={toggleTheme} style={{ paddingLeft: 12, paddingRight: 4 }}>
+            </Pressable>
+            <Pressable onPress={toggleTheme} style={({ pressed }) => [{ paddingLeft: 12, paddingRight: 4 }, pressed && { opacity: 0.7 }]}>
               <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.text} />
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
-        <FlatList
+        <KeyboardAwareFlatList
           key={refreshKey}
           data={SECTIONS}
           keyExtractor={item => item.type}
@@ -977,7 +1000,12 @@ export default function DashboardScreen() {
           style={{ flex: 1, backgroundColor: C.bg }}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[S.screen.scrollContent, { flexGrow: 1, paddingBottom: 0 }]}
+          enableOnAndroid
+          enableAutomaticScroll
+          viewIsInsideTabBar
+          extraScrollHeight={56}
+          keyboardOpeningTime={0}
+          contentContainerStyle={[S.screen.scrollContent, { flexGrow: 1 }]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -987,7 +1015,7 @@ export default function DashboardScreen() {
             />
           }
         />
-      </View>
+        </View>
     </SafeAreaView>
   );
 }

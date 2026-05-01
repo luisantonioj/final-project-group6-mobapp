@@ -27,7 +27,7 @@ import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   StyleSheet,
   Image,
@@ -115,9 +115,9 @@ export function CandidateModal({
         {/* Header */}
         <View style={s.header}>
           <Text style={s.headerLabel}>{positionName}</Text>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Pressable onPress={onClose} style={({ pressed }) => [s.closeBtn, pressed && { opacity: 0.75 }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close" size={20} color={C.textMuted} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         <ScrollView
@@ -182,10 +182,13 @@ export function CandidateModal({
           {/* STUDENT MODE */}
           {!isAdminMode && onSelect ? (
             <>
-              <TouchableOpacity
-                style={[s.primaryBtn, alreadyVoted && s.primaryBtnSwap]}
+              <Pressable
+                style={({ pressed }) => [
+                  s.primaryBtn,
+                  alreadyVoted && s.primaryBtnSwap,
+                  pressed && { opacity: 0.88 },
+                ]}
                 onPress={() => onSelect(candidate)}
-                activeOpacity={0.85}
               >
                 <Ionicons
                   name={alreadyVoted ? 'swap-horizontal-outline' : 'checkmark-circle-outline'}
@@ -195,10 +198,10 @@ export function CandidateModal({
                 <Text style={s.primaryBtnText}>
                   {alreadyVoted ? 'Change Selection' : 'Select This Candidate'}
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.ghostBtn} onPress={onClose} activeOpacity={0.75}>
+              </Pressable>
+              <Pressable style={({ pressed }) => [s.ghostBtn, pressed && { opacity: 0.75 }]} onPress={onClose}>
                 <Text style={s.ghostBtnText}>Cancel</Text>
-              </TouchableOpacity>
+              </Pressable>
             </>
           ) : null}
 
@@ -207,29 +210,27 @@ export function CandidateModal({
             <>
               <View style={s.adminRow}>
                 {onAdminEdit ? (
-                  <TouchableOpacity
-                    style={[s.adminBtn, s.editBtn]}
+                  <Pressable
+                    style={({ pressed }) => [s.adminBtn, s.editBtn, pressed && { opacity: 0.88 }]}
                     onPress={() => onAdminEdit(candidate)}
-                    activeOpacity={0.85}
                   >
                     <Ionicons name="pencil-outline" size={15} color={C.amber} />
                     <Text style={[s.adminBtnText, { color: C.amber }]}>Edit</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ) : null}
                 {onAdminDelete ? (
-                  <TouchableOpacity
-                    style={[s.adminBtn, s.deleteBtn]}
+                  <Pressable
+                    style={({ pressed }) => [s.adminBtn, s.deleteBtn, pressed && { opacity: 0.88 }]}
                     onPress={() => onAdminDelete(candidate)}
-                    activeOpacity={0.85}
                   >
                     <Ionicons name="trash-outline" size={15} color={C.red} />
                     <Text style={[s.adminBtnText, { color: C.red }]}>Delete</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ) : null}
               </View>
-              <TouchableOpacity style={s.ghostBtn} onPress={onClose} activeOpacity={0.75}>
+              <Pressable style={({ pressed }) => [s.ghostBtn, pressed && { opacity: 0.75 }]} onPress={onClose}>
                 <Text style={s.ghostBtnText}>Close</Text>
-              </TouchableOpacity>
+              </Pressable>
             </>
           ) : null}
 
