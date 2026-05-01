@@ -4,15 +4,14 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Modal,
   TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -168,9 +167,13 @@ const DepartmentSelector: React.FC<{
     >
       <View style={S.form.positionInnerRow}>
         {DEPARTMENTS.map(d => (
-          <TouchableOpacity
+          <Pressable
             key={d}
-            style={[S.form.positionTab, selected === d && S.form.positionTabActive]}
+            style={({ pressed }) => [
+              S.form.positionTab,
+              selected === d && S.form.positionTabActive,
+              pressed && { opacity: 0.85 },
+            ]}
             onPress={() => onChange(d)}
           >
             <Text style={[
@@ -179,7 +182,7 @@ const DepartmentSelector: React.FC<{
             ]}>
               {d}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
     </ScrollView>
@@ -204,9 +207,13 @@ const PositionSelector: React.FC<{
     >
       <View style={S.form.positionInnerRow}>
         {positions.map(p => (
-          <TouchableOpacity
+          <Pressable
             key={p}
-            style={[S.form.positionTab, selected === p && S.form.positionTabActive]}
+            style={({ pressed }) => [
+              S.form.positionTab,
+              selected === p && S.form.positionTabActive,
+              pressed && { opacity: 0.85 },
+            ]}
             onPress={() => onChange(p)}
           >
             <Text style={[
@@ -215,7 +222,7 @@ const PositionSelector: React.FC<{
             ]}>
               {p}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
     </ScrollView>
@@ -298,17 +305,18 @@ const CandidateFormSheet: React.FC<{
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={S.form.overlay}>
-          <ScrollView
-            style={S.form.sheet}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
+      <View style={S.form.overlay}>
+        <KeyboardAwareScrollView
+          style={S.form.sheet}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          enableOnAndroid
+          enableAutomaticScroll
+          viewIsInsideTabBar
+          extraScrollHeight={56}
+          keyboardOpeningTime={0}
+        >
             <View style={S.form.handle} />
 
             <Text style={S.form.title}>
@@ -318,7 +326,7 @@ const CandidateFormSheet: React.FC<{
             {/* ── Photo ─────────────────────────────────────────────────── */}
             <Text style={S.form.fieldLabel}>Photo</Text>
             <View style={{ alignItems: 'center', marginBottom: SPACE.md }}>
-              <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.8}>
+              <Pressable onPress={handlePickPhoto} style={({ pressed }) => pressed && { opacity: 0.85 }}>
                 {form.photo_uri ? (
                   <Image
                     source={{ uri: form.photo_uri }}
@@ -342,10 +350,10 @@ const CandidateFormSheet: React.FC<{
                     }
                   </View>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Pressable>
+              <Pressable
                 onPress={handlePickPhoto}
-                style={{
+                style={({ pressed }) => ({
                   marginTop: SPACE.sm,
                   paddingHorizontal: SPACE.md,
                   paddingVertical: SPACE.xs,
@@ -353,12 +361,13 @@ const CandidateFormSheet: React.FC<{
                   borderWidth: 1,
                   borderColor: C.greenDim,
                   backgroundColor: C.surface2,
-                }}
+                  opacity: pressed ? 0.85 : 1,
+                })}
               >
                 <Text style={{ fontSize: FONT.sm, color: C.textSub, fontWeight: '600' }}>
                   {form.photo_uri ? 'Change Photo' : 'Upload from Gallery'}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             {/* ── Full Name ─────────────────────────────────────────────── */}
@@ -489,24 +498,27 @@ const CandidateFormSheet: React.FC<{
             <View style={S.form.divider} />
 
             <View style={S.form.btnRow}>
-              <TouchableOpacity style={S.form.btnCancel} onPress={onClose}>
+              <Pressable style={({ pressed }) => [S.form.btnCancel, pressed && { opacity: 0.85 }]} onPress={onClose}>
                 <Text style={S.form.btnCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[S.form.btnSave, !isValid && S.form.btnSaveDisabled]}
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  S.form.btnSave,
+                  !isValid && S.form.btnSaveDisabled,
+                  isValid && pressed && { opacity: 0.88 },
+                ]}
                 onPress={handleSave}
                 disabled={!isValid}
               >
                 <Text style={S.form.btnSaveText}>
                   {editId ? 'Save Changes' : 'Add Candidate'}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             <View style={{ height: 24 }} />
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
     </Modal>
   );
 };
@@ -545,27 +557,27 @@ const CandidateCard: React.FC<{
       </View>
 
       <View style={S.card.actions}>
-        <TouchableOpacity
-          style={[S.card.actionBtn, S.card.viewBtn]}
+        <Pressable
+          style={({ pressed }) => [S.card.actionBtn, S.card.viewBtn, pressed && { opacity: 0.75 }]}
           onPress={onView}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
           <Text style={S.card.actionIcon}>👁</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[S.card.actionBtn, S.card.editBtn]}
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [S.card.actionBtn, S.card.editBtn, pressed && { opacity: 0.75 }]}
           onPress={onEdit}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
           <Text style={S.card.actionIcon}>✏️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[S.card.actionBtn, S.card.deleteBtn]}
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [S.card.actionBtn, S.card.deleteBtn, pressed && { opacity: 0.75 }]}
           onPress={onDelete}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
           <Text style={S.card.actionIcon}>🗑️</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );
@@ -602,16 +614,17 @@ const PositionHeader: React.FC<{
       >
         {positionName}
       </Text>
-      <TouchableOpacity
+      <Pressable
         onPress={onToggle}
-        style={{
+        style={({ pressed }) => ({
           paddingHorizontal: SPACE.sm,
           paddingVertical:   SPACE.xs,
           borderRadius:      RADIUS.pill,
           borderWidth:       1,
           borderColor:       isDisabled ? 'rgba(239,68,68,0.35)' : C.greenDim,
           backgroundColor:   isDisabled ? C.redGlow              : C.surface2,
-        }}
+          opacity:           pressed ? 0.85 : 1,
+        })}
         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       >
         <Text style={{
@@ -621,7 +634,7 @@ const PositionHeader: React.FC<{
         }}>
           {isDisabled ? '⛔ Disabled' : '✓ Active'}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 };
@@ -758,10 +771,10 @@ function AdminCandidatesScreen() {
             {candidates.length} registered · {DEPARTMENTS.length} departments
           </Text>
         </View>
-        <TouchableOpacity style={S.screen.addBtn} onPress={openAdd}>
+        <Pressable style={({ pressed }) => [S.screen.addBtn, pressed && { opacity: 0.88 }]} onPress={openAdd}>
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', lineHeight: 18 }}>＋</Text>
           <Text style={S.screen.addBtnText}>Add</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -775,24 +788,32 @@ function AdminCandidatesScreen() {
           style={S.filter.scrollRow}
         >
           <View style={S.filter.innerRow}>
-            <TouchableOpacity
-              style={[S.filter.tab, activeFilter === 'all' && S.filter.tabActive]}
+            <Pressable
+              style={({ pressed }) => [
+                S.filter.tab,
+                activeFilter === 'all' && S.filter.tabActive,
+                pressed && { opacity: 0.85 },
+              ]}
               onPress={() => setActiveFilter('all')}
             >
               <Text style={[S.filter.tabText, activeFilter === 'all' && S.filter.tabTextActive]}>
                 All
               </Text>
-            </TouchableOpacity>
+            </Pressable>
             {DEPARTMENTS.map(d => (
-              <TouchableOpacity
+              <Pressable
                 key={d}
-                style={[S.filter.tab, activeFilter === d && S.filter.tabActive]}
+                style={({ pressed }) => [
+                  S.filter.tab,
+                  activeFilter === d && S.filter.tabActive,
+                  pressed && { opacity: 0.85 },
+                ]}
                 onPress={() => setActiveFilter(d)}
               >
                 <Text style={[S.filter.tabText, activeFilter === d && S.filter.tabTextActive]}>
                   {d}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         </ScrollView>

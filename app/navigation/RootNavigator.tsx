@@ -28,9 +28,9 @@ import { View } from 'react-native';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, role, initialized, splashReady } = useAuthStore();
+  const { session, role, activeRole, initialized, splashReady } = useAuthStore();
 
-  console.log('RootNavigator:', { splashReady, initialized, role, session: !!session });
+  console.log('RootNavigator:', { splashReady, initialized, role, activeRole, session: !!session });
 
   if (!splashReady) {
     return (
@@ -46,13 +46,13 @@ export function RootNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-      {!session || !role ? (
-        <Stack.Screen name="Login" component={LoginScreen} />
-      ) : role === 'Admin' ? (
-        <Stack.Screen name="Admin" component={AdminNavigator} />
-      ) : (
-        <Stack.Screen name="App"   component={AppNavigator} />
-      )}
+          {!session || !role ? (
+      <Stack.Screen name="Login" component={LoginScreen} />
+    ) : activeRole === 'Admin' ? (
+      <Stack.Screen name="Admin" component={AdminNavigator} />
+    ) : (
+      <Stack.Screen name="App"   component={AppNavigator} />
+    )}
     </Stack.Navigator>
   );
 }

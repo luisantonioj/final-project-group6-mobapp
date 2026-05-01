@@ -3,10 +3,11 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, ScrollView,
+  View, Text, Pressable, StyleSheet,
+  ActivityIndicator, Alert,
   TextInput, StatusBar,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons }      from '@expo/vector-icons';
 import { supabase }      from '../../utils/supabase';
@@ -19,7 +20,7 @@ export function ProfileScreen() {
   const isDark = useThemeStore(s => s.isDark);
   const s      = useMemo(() => makeStyles(C), [C]);
 
-  const { userProfile, session, setProfile, clear } = useAuthStore();
+  const { userProfile, session, role, setProfile, setActiveRole, clear } = useAuthStore();
 
   const [loading,     setLoading]     = useState(!userProfile);
   const [editing,     setEditing]     = useState(false);
@@ -65,6 +66,17 @@ export function ProfileScreen() {
     ]);
   };
 
+  const handleSwitchToAdmin = () => {
+    Alert.alert(
+      'Switch to Admin View',
+      'You will be taken back to the admin screens.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Switch', onPress: () => setActiveRole('Admin') },
+      ],
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={s.safe}>
@@ -78,7 +90,17 @@ export function ProfileScreen() {
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        enableAutomaticScroll
+        viewIsInsideTabBar
+        extraScrollHeight={32}
+        keyboardOpeningTime={0}
+      >
 
         {/* ── Avatar ── */}
         <View style={s.avatarWrap}>
@@ -97,20 +119,27 @@ export function ProfileScreen() {
             />
             {saveError ? <Text style={s.saveError}>{saveError}</Text> : null}
             <View style={s.editActions}>
-              <TouchableOpacity style={s.cancelEditBtn} onPress={() => setEditing(false)}>
+              <Pressable
+                style={({ pressed }) => [s.cancelEditBtn, pressed && { opacity: 0.75 }]}
+                onPress={() => setEditing(false)}
+              >
                 <Text style={s.cancelEditText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.saveBtn, saving && { opacity: 0.65 }]} onPress={saveEdit} disabled={saving}>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.saveBtn, saving && { opacity: 0.65 }, !saving && pressed && { opacity: 0.85 }]}
+                onPress={saveEdit}
+                disabled={saving}
+              >
                 {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>Save</Text>}
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         ) : (
           <View style={s.nameRow}>
             <Text style={s.name}>{userProfile?.name ?? '—'}</Text>
-            <TouchableOpacity onPress={startEdit} style={s.editIcon}>
+            <Pressable onPress={startEdit} style={({ pressed }) => [s.editIcon, pressed && { opacity: 0.75 }]}>
               <Ionicons name="pencil-outline" size={15} color={C.textMuted} />
-            </TouchableOpacity>
+            </Pressable>
           </View>
         )}
 
@@ -125,8 +154,8 @@ export function ProfileScreen() {
 
         {/* ── Info rows ── */}
         <View style={s.infoSection}>
-          <InfoRow icon="school-outline"           label="Institution"     value="De La Salle Lipa" />
-          <InfoRow icon="calendar-outline"          label="Election"        value="SY 2025–2026" />
+          <InfoRow icon="school-outline"         label="Institution"    value="De La Salle Lipa" />
+          <InfoRow icon="calendar-outline"        label="Election"       value="SY 2025–2026" />
           <InfoRow
             icon="checkmark-circle-outline"
             label="Account Status"
@@ -135,10 +164,22 @@ export function ProfileScreen() {
           />
         </View>
 
+        {/* ── Switch to Admin (only shown to users who are actually admins) ── */}
+        {role === 'Admin' && (
+          <Pressable
+            style={({ pressed }) => [s.switchAdminBtn, pressed && { opacity: 0.85 }]}
+            onPress={handleSwitchToAdmin}
+          >
+            <Ionicons name="shield-checkmark-outline" size={17} color={C.greenBright} style={{ marginRight: 8 }} />
+            <Text style={s.switchAdminText}>Switch as Admin</Text>
+          </Pressable>
+        )}
+
         {/* ── Sign out ── */}
-        <TouchableOpacity
-          style={[s.signOutBtn, signOutBusy && { opacity: 0.65 }]}
-          onPress={handleSignOut} disabled={signOutBusy} activeOpacity={0.8}
+        <Pressable
+          style={({ pressed }) => [s.signOutBtn, signOutBusy && { opacity: 0.65 }, !signOutBusy && pressed && { opacity: 0.85 }]}
+          onPress={handleSignOut}
+          disabled={signOutBusy}
         >
           {signOutBusy
             ? <ActivityIndicator size="small" color={C.red} />
@@ -147,10 +188,10 @@ export function ProfileScreen() {
                 <Text style={s.signOutText}>Sign Out</Text>
               </>
           }
-        </TouchableOpacity>
+        </Pressable>
 
         <Text style={s.version}>AnimoQuorum v1.0 · DLSL COMELEC</Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -204,11 +245,11 @@ function makeStyles(C: ThemeColors) {
       borderRadius: 12, color: C.text, fontSize: 16,
       paddingHorizontal: 14, paddingVertical: 12, textAlign: 'center', fontWeight: '700',
     },
-    saveError:     { color: C.red, fontSize: 12, textAlign: 'center', marginTop: 6 },
-    editActions:   { flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center' },
-    cancelEditBtn: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    cancelEditText:{ color: C.textMuted, fontWeight: '600' },
-    saveBtn:       {
+    saveError:      { color: C.red, fontSize: 12, textAlign: 'center', marginTop: 6 },
+    editActions:    { flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center' },
+    cancelEditBtn:  { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    cancelEditText: { color: C.textMuted, fontWeight: '600' },
+    saveBtn: {
       flex: 1, backgroundColor: C.green, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
       shadowColor: C.green, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 3,
     },
@@ -219,6 +260,16 @@ function makeStyles(C: ThemeColors) {
       borderWidth: 1, borderColor: C.border, marginBottom: 24, overflow: 'hidden',
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
     },
+
+    switchAdminBtn: {
+      width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.greenLight, borderRadius: 14,
+      borderWidth: 1, borderColor: C.greenBright + '55',
+      paddingVertical: 14, marginBottom: 12,
+      shadowColor: C.green, shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12, shadowRadius: 4, elevation: 2,
+    },
+    switchAdminText: { fontSize: 15, fontWeight: '700', color: C.greenBright },
 
     signOutBtn: {
       width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

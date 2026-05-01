@@ -98,27 +98,34 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          parent_id: string | null
           post_id: string
           student_id: string
-          updated_at: string | null
         }
         Insert: {
           content: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           post_id: string
           student_id: string
-          updated_at?: string | null
         }
         Update: {
           content?: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           post_id?: string
           student_id?: string
-          updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "Comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "Comments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "Comments_post_id_fkey"
             columns: ["post_id"]
@@ -126,11 +133,33 @@ export type Database = {
             referencedRelation: "Posts"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      Likes: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          student_id?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "Comments_student_id_fkey"
-            columns: ["student_id"]
+            foreignKeyName: "Likes_post_id_fkey"
+            columns: ["post_id"]
             isOneToOne: false
-            referencedRelation: "Users"
+            referencedRelation: "Posts"
             referencedColumns: ["id"]
           },
         ]
@@ -245,13 +274,6 @@ export type Database = {
             columns: ["poll_option_id"]
             isOneToOne: false
             referencedRelation: "PollOptions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "PollResponses_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "Users"
             referencedColumns: ["id"]
           },
         ]
@@ -396,57 +418,27 @@ export type Database = {
         }
         Relationships: []
       }
-      todos: {
-        Row: {
-          counter: number
-          created_at: string | null
-          deleted: boolean | null
-          done: boolean | null
-          id: string
-          text: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          counter?: number
-          created_at?: string | null
-          deleted?: boolean | null
-          done?: boolean | null
-          id?: string
-          text?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          counter?: number
-          created_at?: string | null
-          deleted?: boolean | null
-          done?: boolean | null
-          id?: string
-          text?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       UserRoles: {
         Row: {
           assigned_at: string | null
-          auth_id:     string | null  // ← added for RLS circular dependency fix
-          id:          string
-          role_id:     string
-          user_id:     string
+          auth_id: string | null
+          id: string
+          role_id: string
+          user_id: string
         }
         Insert: {
           assigned_at?: string | null
-          auth_id?:     string | null  // ← added
-          id?:          string
-          role_id:      string
-          user_id:      string
+          auth_id?: string | null
+          id?: string
+          role_id: string
+          user_id: string
         }
         Update: {
           assigned_at?: string | null
-          auth_id?:     string | null  // ← added
-          id?:          string
-          role_id?:     string
-          user_id?:     string
+          auth_id?: string | null
+          id?: string
+          role_id?: string
+          user_id?: string
         }
         Relationships: [
           {

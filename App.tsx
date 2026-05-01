@@ -25,7 +25,7 @@ import { useAuthStore } from './app/stores/authStore';
 import { hydrateTheme } from './app/stores/themeStore';
 
 export default function App() {
-  const { setSession, setRole, setProfile, setInitialized, clear } = useAuthStore();
+  const { setSession, setRole, setActiveRole, setProfile, setInitialized, clear } = useAuthStore();
 
   useEffect(() => {
     // ── 0. Restore persisted theme preference ─────────────────────────────────
@@ -81,7 +81,9 @@ export default function App() {
 
               const roleNames = (rolesData ?? []).map((ur: any) => ur?.Roles?.role_name);
               const roleName  = roleNames.includes('Admin') ? 'Admin' : (roleNames[0] ?? 'Student');
-              setRole(roleName === 'Admin' ? 'Admin' : 'Student');
+              const resolvedRole = roleName === 'Admin' ? 'Admin' : 'Student';
+              setRole(resolvedRole);
+              setActiveRole(resolvedRole);
               setProfile(userData as any);
             }
           } else {
