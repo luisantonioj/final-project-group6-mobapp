@@ -479,7 +479,7 @@ export type Database = {
           student_id: string
         }
         Insert: {
-          candidate_id: string
+          candidate_id?: string | null
           created_at?: string | null
           id?: string
           is_valid?: boolean | null
@@ -487,7 +487,7 @@ export type Database = {
           student_id: string
         }
         Update: {
-          candidate_id?: string
+          candidate_id?: string | null
           created_at?: string | null
           id?: string
           is_valid?: boolean | null
