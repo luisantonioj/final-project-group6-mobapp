@@ -544,6 +544,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_lookup_user_id_by_email: {
+        Args: { p_email: string }
+        Returns: string
+      },
       cast_vote: {
         Args: { p_candidate_id: string; p_position_id: string }
         Returns: Json

@@ -27,6 +27,12 @@ function AddAdminModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [email, setEmail] = useState('');
   const { mutate, isPending, isError, isSuccess, error, reset } = useGrantAdminRole();
 
+  useEffect(() => {
+    if (!visible) return;
+    setEmail('');
+    reset();
+  }, [visible, reset]);
+
   const handleClose = () => {
     setEmail('');
     reset();
@@ -93,7 +99,7 @@ function AddAdminModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 <View style={s.feedbackRow}>
                   <Ionicons name="checkmark-circle-outline" size={15} color={C.greenBright} />
                   <Text style={[s.feedbackText, { color: C.greenBright }]}>
-                    Admin access granted successfully.
+                    Admin access granted. They should sign out and back in (or restart the app) before Profile shows Switch to Admin.
                   </Text>
                 </View>
               )}
