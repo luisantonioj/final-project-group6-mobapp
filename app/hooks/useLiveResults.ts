@@ -44,6 +44,7 @@ export interface LivePosition {
   id: string;
   position_name: string;
   display_order: number;
+  college?: string;
   candidates: LiveCandidate[];
   totalVotes: number;
 }
@@ -74,7 +75,7 @@ export function useLiveResults(): UseLiveResultsReturn {
       // 1. Fetch all positions ordered by display_order
       const { data: posData, error: posErr } = await supabase
         .from('Positions')
-        .select('id, position_name, display_order')
+        .select('id, position_name, display_order, college')
         .order('display_order', { ascending: true });
 
       if (posErr) throw posErr;
@@ -119,6 +120,7 @@ export function useLiveResults(): UseLiveResultsReturn {
           id:            pos.id,
           position_name: pos.position_name,
           display_order: pos.display_order,
+          college:       pos.college ?? 'Executive Council',
           candidates,
           totalVotes:    candidates.reduce((sum, c) => sum + c.votes, 0),
         };

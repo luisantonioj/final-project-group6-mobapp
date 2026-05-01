@@ -241,18 +241,21 @@ export type Database = {
       }
       Positions: {
         Row: {
+          college: string | null
           created_at: string | null
           display_order: number
           id: string
           position_name: string
         }
         Insert: {
+          college?: string | null
           created_at?: string | null
           display_order?: number
           id?: string
           position_name: string
         }
         Update: {
+          college?: string | null
           created_at?: string | null
           display_order?: number
           id?: string
@@ -376,6 +379,24 @@ export type Database = {
           updated_at?: string | null
           voting_end_time?: string | null
           voting_start_time?: string | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          id: number
+          name: string
+          user_id: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          user_id?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          user_id?: string
         }
         Relationships: []
       }

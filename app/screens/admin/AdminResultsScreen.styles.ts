@@ -1,3 +1,4 @@
+// app/screens/admin/AdminResultsScreen.styles.ts
 import { StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../theme';
 

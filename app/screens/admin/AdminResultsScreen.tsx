@@ -1,65 +1,21 @@
-import React, { useState, useMemo, createContext, useContext } from 'react';
+// app/screens/admin/AdminResultsScreen.tsx
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   StatusBar,
-  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { makeStyles } from './AdminResultsScreen.styles';
 import { useThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
-
-const { width } = Dimensions.get('window');
+import { useLiveResults, LivePosition, LiveCandidate } from '../../hooks/useLiveResults';
 
 type Styles = ReturnType<typeof makeStyles>;
-
-// ─── DUMMY DATA ───────────────────────────────────────────────────────────────
-
-type Candidate = { name: string; votes: number };
-type Position  = { title: string; candidates: Candidate[] };
-type CollegeData = { [college: string]: Position[] };
-
-const RAW_DATA: CollegeData = {
-  'Executive Council': [
-    { title: 'President',      candidates: [{ name: 'Maria Santos', votes: 312 }, { name: 'Jose Reyes', votes: 278 }, { name: 'Ana Dela Cruz', votes: 195 }] },
-    { title: 'Vice President', candidates: [{ name: 'Carlo Mendoza', votes: 401 }, { name: 'Liza Bautista', votes: 334 }, { name: 'Mark Villanueva', votes: 210 }] },
-    { title: 'Secretary',      candidates: [{ name: 'Sofia Torres', votes: 445 }, { name: 'Ryan Flores', votes: 389 }] },
-    { title: 'Treasurer',      candidates: [{ name: 'Patricia Gomez', votes: 420 }, { name: 'Daniel Aquino', votes: 365 }, { name: 'Camille Navarro', votes: 150 }] },
-  ],
-  CITE: [
-    { title: 'President',      candidates: [{ name: 'Kevin Tan', votes: 88 }, { name: 'Rachel Uy', votes: 74 }, { name: 'James Co', votes: 52 }] },
-    { title: 'Vice President', candidates: [{ name: 'Nicole Sy', votes: 101 }, { name: 'Brian Lim', votes: 89 }] },
-    { title: 'Secretary',      candidates: [{ name: 'Trisha Wong', votes: 95 }, { name: 'Andrei Cruz', votes: 88 }, { name: 'Mia Dizon', votes: 31 }] },
-    { title: 'Treasurer',      candidates: [{ name: 'Luis Chua', votes: 110 }, { name: 'Vanessa Ong', votes: 84 }] },
-  ],
-  CBEAM: [
-    { title: 'President',      candidates: [{ name: 'Ella Ramos', votes: 67 }, { name: 'Marco Yap', votes: 55 }, { name: 'Jana Roxas', votes: 40 }] },
-    { title: 'Vice President', candidates: [{ name: 'Dino Pascual', votes: 72 }, { name: 'Sheena Alba', votes: 61 }] },
-    { title: 'Secretary',      candidates: [{ name: 'Kristine Delos Reyes', votes: 80 }, { name: 'Paolo Serrano', votes: 58 }] },
-    { title: 'Treasurer',      candidates: [{ name: 'Bianca Hilario', votes: 77 }, { name: 'Enrique Magno', votes: 65 }, { name: 'Lourdes Perez', votes: 20 }] },
-  ],
-  CON: [
-    { title: 'President',      candidates: [{ name: 'Grace Dimaculangan', votes: 54 }, { name: 'Harold Vizcaya', votes: 47 }] },
-    { title: 'Vice President', candidates: [{ name: 'Ivy Tolentino', votes: 60 }, { name: 'Renz Malabanan', votes: 41 }] },
-    { title: 'Secretary',      candidates: [{ name: 'Abby Castillo', votes: 55 }, { name: 'Noel Soriano', votes: 46 }] },
-    { title: 'Treasurer',      candidates: [{ name: 'Fiona Alcantara', votes: 63 }, { name: 'Gerald Estrada', votes: 38 }] },
-  ],
-  CEAS: [
-    { title: 'President',      candidates: [{ name: 'Diana Mercado', votes: 92 }, { name: 'Eric Bondoc', votes: 76 }, { name: 'Lyra Manalo', votes: 44 }] },
-    { title: 'Vice President', candidates: [{ name: 'Felix Hernandez', votes: 99 }, { name: 'Gina Macapagal', votes: 83 }] },
-    { title: 'Secretary',      candidates: [{ name: 'Hannah Espinosa', votes: 105 }, { name: 'Ivan Lorenzo', votes: 79 }, { name: 'Jasmine Padilla', votes: 28 }] },
-    { title: 'Treasurer',      candidates: [{ name: 'Kenneth Reyes', votes: 88 }, { name: 'Lorraine Salazar', votes: 73 }] },
-  ],
-  CIHTM: [
-    { title: 'President',      candidates: [{ name: 'Mara Dalisay', votes: 45 }, { name: 'Nathan Evangelista', votes: 38 }] },
-    { title: 'Vice President', candidates: [{ name: 'Olivia Francisco', votes: 50 }, { name: 'Patrick Guerrero', votes: 33 }] },
-    { title: 'Secretary',      candidates: [{ name: 'Queen Ignacio', votes: 47 }, { name: 'Robert Jacinto', votes: 36 }] },
-    { title: 'Treasurer',      candidates: [{ name: 'Stella Katipunan', votes: 52 }, { name: 'Timothy Lacson', votes: 31 }] },
-  ],
-};
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -75,26 +31,20 @@ const COLLEGE_COLORS: { [key: string]: string } = {
 };
 
 const POSITION_ICONS: { [key: string]: string } = {
-  President: '', 'Vice President': '', Secretary: '', Treasurer: '',
+  President: '👑', 
+  'Vice President': '⭐', 
+  Secretary: '📝', 
+  Treasurer: '💰',
 };
-
-function getTotalVotes(candidates: Candidate[]): number {
-  return candidates.reduce((sum, c) => sum + c.votes, 0);
-}
-
-function getDataForTab(tab: string): { college: string; positions: Position[] }[] {
-  if (tab === 'All') return Object.entries(RAW_DATA).map(([college, positions]) => ({ college, positions }));
-  if (RAW_DATA[tab]) return [{ college: tab, positions: RAW_DATA[tab] }];
-  return [];
-}
 
 // ─── SUB-COMPONENTS ──────────────────────────────────────────────────────────
 
 function CandidateBar({ candidate, total, rank, accentColor, styles }: {
-  candidate: Candidate; total: number; rank: number; accentColor: string; styles: Styles;
+  candidate: LiveCandidate; total: number; rank: number; accentColor: string; styles: Styles;
 }) {
-  const pct       = total > 0 ? Math.round((candidate.votes / total) * 100) : 0;
-  const isLeading = rank === 0;
+  const pct = total > 0 ? Math.round((candidate.votes / total) * 100) : 0;
+  const isLeading = rank === 0 && candidate.votes > 0;
+  
   return (
     <View style={styles.candidateRow}>
       <View style={styles.candidateMeta}>
@@ -113,32 +63,44 @@ function CandidateBar({ candidate, total, rank, accentColor, styles }: {
 }
 
 function PositionCard({ position, accentColor, styles }: {
-  position: Position; accentColor: string; styles: Styles;
+  position: LivePosition; accentColor: string; styles: Styles;
 }) {
-  const total  = getTotalVotes(position.candidates);
-  const sorted = [...position.candidates].sort((a, b) => b.votes - a.votes);
-  const icon   = POSITION_ICONS[position.title] ?? '🗳️';
+  const icon = POSITION_ICONS[position.position_name] ?? '🗳️';
+  
   return (
     <View style={styles.positionCard}>
       <View style={styles.positionHeader}>
         <Text style={styles.positionIcon}>{icon}</Text>
-        <Text style={styles.positionTitle}>{position.title}</Text>
+        <Text style={styles.positionTitle}>{position.position_name}</Text>
         <View style={[styles.totalBadge, { borderColor: accentColor }]}>
-          <Text style={[styles.totalText, { color: accentColor }]}>{total} votes</Text>
+          <Text style={[styles.totalText, { color: accentColor }]}>{position.totalVotes} votes</Text>
         </View>
       </View>
-      {sorted.map((candidate, idx) => (
-        <CandidateBar key={candidate.name} candidate={candidate} total={total} rank={idx} accentColor={accentColor} styles={styles} />
+      {position.candidates.map((candidate, idx) => (
+        <CandidateBar 
+          key={candidate.id} 
+          candidate={candidate} 
+          total={position.totalVotes} 
+          rank={idx} 
+          accentColor={accentColor} 
+          styles={styles} 
+        />
       ))}
     </View>
   );
 }
 
 function CollegeSection({ college, positions, styles }: {
-  college: string; positions: Position[]; styles: Styles;
+  college: string; positions: LivePosition[]; styles: Styles;
 }) {
-  const color         = COLLEGE_COLORS[college] ?? '#888';
-  const totalAllVotes = positions.reduce((sum, p) => sum + getTotalVotes(p.candidates), 0);
+  const color = COLLEGE_COLORS[college] ?? '#888';
+  
+  // Calculate total votes for this specific college
+  const totalAllVotes = positions.reduce((sum, p) => sum + p.totalVotes, 0);
+  
+  // Don't render empty sections
+  if (positions.length === 0) return null;
+
   return (
     <View style={styles.collegeSection}>
       <View style={[styles.collegeBanner, { borderLeftColor: color }]}>
@@ -151,7 +113,7 @@ function CollegeSection({ college, positions, styles }: {
         </View>
       </View>
       {positions.map(pos => (
-        <PositionCard key={pos.title} position={pos} accentColor={color} styles={styles} />
+        <PositionCard key={pos.id} position={pos} accentColor={color} styles={styles} />
       ))}
     </View>
   );
@@ -160,15 +122,50 @@ function CollegeSection({ college, positions, styles }: {
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 
 export function AdminResultsScreen() {
-  const C                  = useThemeColors();
-  const { isDark }         = useThemeStore();
-  const styles             = useMemo(() => makeStyles(C), [C]);
+  const C = useThemeColors();
+  const { isDark } = useThemeStore();
+  const styles = useMemo(() => makeStyles(C), [C]);
+  
   const [activeTab, setActiveTab] = useState('All');
 
-  const sections   = getDataForTab(activeTab);
-  const grandTotal = Object.values(RAW_DATA)
-    .flat()
-    .reduce((sum, pos) => sum + getTotalVotes(pos.candidates), 0);
+  // Hook into our live Supabase data
+  const { positions, isLoading, isError, error, refetch } = useLiveResults();
+
+  // Calculate the massive global total across everything
+  const grandTotal = useMemo(() => {
+    return positions.reduce((sum, pos) => sum + pos.totalVotes, 0);
+  }, [positions]);
+
+  // Group and filter the data dynamically based on the active tab
+  const groupedSections = useMemo(() => {
+    if (activeTab === 'All') {
+      // Group everything by college
+      const grouped = positions.reduce((acc, pos) => {
+        const col = pos.college || 'Executive Council';
+        if (!acc[col]) acc[col] = [];
+        acc[col].push(pos);
+        return acc;
+      }, {} as Record<string, LivePosition[]>);
+
+      // Map to array of sections (you can also map to control display order if needed)
+      return Object.entries(grouped).map(([college, posList]) => ({
+        college,
+        positions: posList,
+      }));
+    } else {
+      // Filter just for the selected tab
+      const filtered = positions.filter(p => (p.college || 'Executive Council') === activeTab);
+      return [{ college: activeTab, positions: filtered }];
+    }
+  }, [positions, activeTab]);
+
+  if (isLoading && positions.length === 0) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={C.green} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -201,7 +198,7 @@ export function AdminResultsScreen() {
       >
         {TABS.map(tab => {
           const isActive = tab === activeTab;
-          const color    = COLLEGE_COLORS[tab];
+          const color = COLLEGE_COLORS[tab] || '#888';
           return (
             <Pressable
               key={tab}
@@ -209,11 +206,11 @@ export function AdminResultsScreen() {
               style={({ pressed }) => [
                 styles.tab,
                 isActive && styles.tabActive,
-                isActive && color ? { borderBottomColor: color } : {},
+                isActive && tab !== 'All' ? { borderBottomColor: color } : {},
                 pressed && { opacity: 0.85 },
               ]}
             >
-              <Text style={[styles.tabText, isActive && styles.tabTextActive, isActive && color ? { color } : {}]}>
+              <Text style={[styles.tabText, isActive && styles.tabTextActive, isActive && tab !== 'All' ? { color } : {}]}>
                 {tab}
               </Text>
             </Pressable>
@@ -222,10 +219,27 @@ export function AdminResultsScreen() {
       </ScrollView>
 
       {/* ── Content ── */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
-        {sections.map(({ college, positions }) => (
-          <CollegeSection key={college} college={college} positions={positions} styles={styles} />
-        ))}
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentInner} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isLoading && positions.length > 0} onRefresh={refetch} tintColor={C.green} />
+        }
+      >
+        {isError ? (
+           <Text style={{ color: '#ef4444', textAlign: 'center', marginVertical: 20 }}>
+             {error || 'Failed to load live results.'}
+           </Text>
+        ) : groupedSections.length === 0 ? (
+           <Text style={{ color: C.textMuted, textAlign: 'center', marginVertical: 40 }}>
+             No positions found for {activeTab}.
+           </Text>
+        ) : (
+          groupedSections.map(({ college, positions }) => (
+            <CollegeSection key={college} college={college} positions={positions} styles={styles} />
+          ))
+        )}
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
