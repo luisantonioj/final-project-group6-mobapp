@@ -2,240 +2,266 @@
 import { StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../theme';
 
+export const FONT = {
+  xs: 10, sm: 12, base: 14, md: 15, lg: 17, xl: 20, xxl: 24,
+};
+
+export const RADIUS = {
+  sm: 8, md: 12, lg: 16, xl: 20, pill: 999,
+};
+
+export const SPACE = {
+  xs: 4, sm: 8, md: 12, base: 16, lg: 20, xl: 24, xxl: 32,
+};
+
 export function makeStyles(C: ThemeColors) {
-  return StyleSheet.create({
-    safe: {
+  const screen = StyleSheet.create({
+    container: {
       flex: 1,
       backgroundColor: C.bg,
     },
-
-    // Header
     header: {
       flexDirection:     'row',
-      justifyContent:    'space-between',
       alignItems:        'center',
-      paddingHorizontal: 20,
-      paddingTop:        12,
-      paddingBottom:     8,
-    },
-    headerLabel: {
-      fontSize:      10,
-      letterSpacing: 2,
-      color:         C.textMuted,
-      fontWeight:    '700',
-      marginBottom:  2,
+      justifyContent:    'space-between',
+      paddingHorizontal: SPACE.base,
+      paddingTop:        SPACE.lg,
+      paddingBottom:     SPACE.md,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
     },
     headerTitle: {
-      fontSize:      24,
+      fontSize:      FONT.xxl,
       fontWeight:    '800',
       color:         C.text,
       letterSpacing: -0.5,
     },
-    liveChip: {
+    headerSub: {
+      fontSize:  FONT.sm,
+      color:     C.textMuted,
+      marginTop: 2,
+    },
+    scrollContent: {
+      paddingHorizontal: SPACE.base,
+      paddingTop:        SPACE.lg,
+      paddingBottom:     120,
+    },
+  });
+
+  const live = StyleSheet.create({
+    chip: {
       flexDirection:     'row',
       alignItems:        'center',
       backgroundColor:   C.redGlow,
-      borderRadius:      20,
+      borderRadius:      RADIUS.pill,
       paddingHorizontal: 10,
       paddingVertical:   5,
       borderWidth:       1,
       borderColor:       'rgba(239,68,68,0.35)',
     },
-    liveDot: {
+    dot: {
       width:           6,
       height:          6,
       borderRadius:    3,
       backgroundColor: C.red,
       marginRight:     5,
     },
-    liveText: {
+    text: {
       color:         C.red,
-      fontSize:      10,
+      fontSize:      FONT.xs,
       fontWeight:    '800',
       letterSpacing: 1.5,
     },
-
-    // Summary bar
-    summaryBar: {
+    controlsRow: {
       flexDirection:     'row',
-      justifyContent:    'space-between',
       alignItems:        'center',
-      marginHorizontal:  20,
-      marginBottom:      4,
-      backgroundColor:   C.surface2,
-      borderRadius:      12,
-      paddingHorizontal: 16,
-      paddingVertical:   10,
+      gap:               SPACE.xs,
+      backgroundColor:   C.pill,
+      borderRadius:      RADIUS.pill,
+      paddingHorizontal: SPACE.sm,
+      paddingVertical:   SPACE.xs,
     },
-    summaryLabel: {
-      color:    C.textMuted,
-      fontSize: 12,
-      fontWeight: '500',
+    iconBtn: {
+      padding: SPACE.xs,
     },
-    summaryCount: {
-      color:      C.text,
-      fontSize:   18,
-      fontWeight: '800',
-    },
+  });
 
-    // Tabs
-    tabScroll: {
-      flexGrow: 0,
-      marginTop: 8,
+  const filter = StyleSheet.create({
+    scrollRow: {
+      marginBottom: SPACE.md,
     },
-    tabContainer: {
-      paddingHorizontal: 16,
-      gap:               4,
+    innerRow: {
+      flexDirection: 'row',
+      gap:           SPACE.sm,
+      paddingRight:  SPACE.base,
     },
     tab: {
-      paddingHorizontal:  14,
-      paddingVertical:    10,
-      borderBottomWidth:  2,
-      borderBottomColor:  'transparent',
-      marginRight:        2,
-    },
-    tabActive: {
-      borderBottomWidth: 2,
-      borderBottomColor: C.green,
+      paddingHorizontal: SPACE.md,
+      paddingVertical:   SPACE.xs + 2,
+      borderRadius:      RADIUS.pill,
+      borderWidth:       1,
+      borderColor:       C.border,
+      backgroundColor:   C.surface,
     },
     tabText: {
-      color:      C.textMuted,
-      fontSize:   13,
+      fontSize:   FONT.sm,
       fontWeight: '600',
+      color:      C.textMuted,
     },
     tabTextActive: {
-      color:      C.text,
       fontWeight: '700',
     },
+  });
 
-    // Content
-    content: {
-      flex:      1,
-      marginTop: 12,
+  const college = StyleSheet.create({
+    section: {
+      marginBottom: SPACE.xl,
     },
-    contentInner: {
-      paddingHorizontal: 16,
-    },
-
-    // College section
-    collegeSection: {
-      marginBottom: 28,
-    },
-    collegeBanner: {
-      flexDirection:  'row',
-      justifyContent: 'space-between',
-      alignItems:     'center',
+    banner: {
+      flexDirection:   'row',
+      justifyContent:  'space-between',
+      alignItems:      'center',
       borderLeftWidth: 4,
-      paddingLeft:    12,
-      marginBottom:   12,
+      paddingLeft:     SPACE.md,
+      marginBottom:    SPACE.base,
     },
-    collegeName: {
+    name: {
       color:         C.text,
-      fontSize:      16,
+      fontSize:      FONT.lg,
       fontWeight:    '800',
       letterSpacing: -0.3,
     },
-    collegeStat: {
+    stat: {
       color:     C.textMuted,
-      fontSize:  11,
-      marginTop: 1,
+      fontSize:  FONT.sm,
+      marginTop: 2,
     },
-    collegeChip: {
-      borderRadius:      20,
-      paddingHorizontal: 10,
-      paddingVertical:   4,
+    chip: {
+      borderRadius:      RADIUS.pill,
+      paddingHorizontal: SPACE.md,
+      paddingVertical:   SPACE.xs,
     },
-    collegeChipText: {
-      fontSize:   11,
+    chipText: {
+      fontSize:   FONT.sm,
       fontWeight: '700',
     },
+  });
 
-    // Position card
-    positionCard: {
+  const card = StyleSheet.create({
+    wrapper: {
       backgroundColor: C.surface,
-      borderRadius:    14,
-      padding:         14,
-      marginBottom:    10,
+      borderRadius:    RADIUS.lg,
+      borderWidth:     1,
+      borderColor:     C.border,
+      padding:         SPACE.base,
+      marginBottom:    SPACE.sm,
     },
-    positionHeader: {
+    header: {
       flexDirection: 'row',
       alignItems:    'center',
-      marginBottom:  12,
+      marginBottom:  SPACE.base,
     },
-    positionIcon: {
-      fontSize:    16,
-      marginRight: 6,
+    icon: {
+      fontSize:    FONT.lg,
+      marginRight: SPACE.sm,
     },
-    positionTitle: {
+    title: {
       flex:       1,
       color:      C.text,
-      fontSize:   14,
+      fontSize:   FONT.md,
       fontWeight: '700',
     },
-    totalBadge: {
-      borderRadius:      20,
+    badge: {
+      borderRadius:      RADIUS.pill,
       borderWidth:       1,
-      paddingHorizontal: 8,
+      paddingHorizontal: SPACE.sm,
       paddingVertical:   3,
     },
-    totalText: {
-      fontSize:   10,
+    badgeText: {
+      fontSize:   FONT.xs,
       fontWeight: '700',
     },
+  });
 
-    // Candidate row
-    candidateRow: {
-      marginBottom: 10,
+  const candidate = StyleSheet.create({
+    row: {
+      marginBottom: SPACE.md,
     },
-    candidateMeta: {
+    meta: {
       flexDirection: 'row',
       alignItems:    'center',
-      marginBottom:  5,
+      marginBottom:  6,
     },
     rankBadge: {
-      width:          20,
-      height:         20,
-      borderRadius:   10,
+      width:           22,
+      height:          22,
+      borderRadius:    11,
       backgroundColor: C.surface2,
-      alignItems:     'center',
-      justifyContent: 'center',
-      marginRight:    8,
+      alignItems:      'center',
+      justifyContent:  'center',
+      marginRight:     SPACE.sm,
     },
     rankText: {
       color:      C.textMuted,
-      fontSize:   9,
+      fontSize:   FONT.xs,
       fontWeight: '800',
     },
-    candidateName: {
+    name: {
       flex:       1,
-      color:      C.textSub,
-      fontSize:   13,
-      fontWeight: '500',
+      color:      C.text,
+      fontSize:   FONT.base,
+      fontWeight: '600',
     },
-    candidateVotes: {
-      fontSize:   13,
+    votes: {
+      fontSize:   FONT.base,
       fontWeight: '800',
     },
     barTrack: {
-      height:          6,
+      height:          8,
       backgroundColor: C.surface2,
-      borderRadius:    3,
+      borderRadius:    4,
       overflow:        'hidden',
       flexDirection:   'row',
       alignItems:      'center',
     },
     barFill: {
       height:       '100%',
-      borderRadius: 3,
+      borderRadius: 4,
     },
     pctLabel: {
-      position:   'absolute',
-      right:      0,
-      color:      C.textMuted,
-      fontSize:   9,
-      fontWeight: '600',
+      position:      'absolute',
+      right:         0,
+      color:         C.textMuted,
+      fontSize:      FONT.xs,
+      fontWeight:    '700',
+      paddingRight:  4,
     },
   });
+
+  const empty = StyleSheet.create({
+    wrapper: {
+      alignItems:      'center',
+      justifyContent:  'center',
+      paddingVertical: SPACE.xxl * 2,
+      gap:             SPACE.md,
+    },
+    icon: { 
+      fontSize: 36, 
+      marginBottom: SPACE.sm 
+    },
+    title: { 
+      fontSize: FONT.lg, 
+      fontWeight: '700', 
+      color: C.text 
+    },
+    body: { 
+      fontSize: FONT.sm, 
+      color: C.textMuted, 
+      textAlign: 'center' 
+    },
+  });
+
+  return { screen, live, filter, college, card, candidate, empty };
 }
 
 export type AdminResultsStyles = ReturnType<typeof makeStyles>;
