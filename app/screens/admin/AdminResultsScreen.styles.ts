@@ -113,40 +113,6 @@ export function makeStyles(C: ThemeColors) {
     },
   });
 
-  const college = StyleSheet.create({
-    section: {
-      marginBottom: SPACE.xl,
-    },
-    banner: {
-      flexDirection:   'row',
-      justifyContent:  'space-between',
-      alignItems:      'center',
-      borderLeftWidth: 4,
-      paddingLeft:     SPACE.md,
-      marginBottom:    SPACE.base,
-    },
-    name: {
-      color:         C.text,
-      fontSize:      FONT.lg,
-      fontWeight:    '800',
-      letterSpacing: -0.3,
-    },
-    stat: {
-      color:     C.textMuted,
-      fontSize:  FONT.sm,
-      marginTop: 2,
-    },
-    chip: {
-      borderRadius:      RADIUS.pill,
-      paddingHorizontal: SPACE.md,
-      paddingVertical:   SPACE.xs,
-    },
-    chipText: {
-      fontSize:   FONT.sm,
-      fontWeight: '700',
-    },
-  });
-
   const card = StyleSheet.create({
     wrapper: {
       backgroundColor: C.surface,
@@ -157,19 +123,21 @@ export function makeStyles(C: ThemeColors) {
       marginBottom:    SPACE.sm,
     },
     header: {
-      flexDirection: 'row',
-      alignItems:    'center',
-      marginBottom:  SPACE.base,
+      flexDirection:  'row',
+      alignItems:     'center',
+      marginBottom:   SPACE.md,
+      gap:            SPACE.sm,
     },
-    icon: {
-      fontSize:    FONT.lg,
-      marginRight: SPACE.sm,
+    icon: {   // unused but keep to avoid type errors
+      fontSize: 0,
     },
     title: {
-      flex:       1,
-      color:      C.text,
-      fontSize:   FONT.md,
-      fontWeight: '700',
+      flex:          1,
+      color:         C.text,
+      fontSize:      FONT.base,
+      fontWeight:    '700',
+      letterSpacing: 0.2,
+      textTransform: 'uppercase',
     },
     badge: {
       borderRadius:      RADIUS.pill,
@@ -183,19 +151,55 @@ export function makeStyles(C: ThemeColors) {
     },
   });
 
+  const college = StyleSheet.create({
+    section: {
+      marginBottom: SPACE.xl,
+    },
+    banner: {
+      flexDirection:   'row',
+      justifyContent:  'space-between',
+      alignItems:      'center',
+      borderLeftWidth: 3,
+      paddingLeft:     SPACE.md,
+      marginBottom:    SPACE.md,
+    },
+    name: {
+      color:         C.text,
+      fontSize:      FONT.md,
+      fontWeight:    '800',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    stat: {
+      color:     C.textMuted,
+      fontSize:  FONT.xs,
+      marginTop: 2,
+      letterSpacing: 0.3,
+    },
+    chip: {
+      borderRadius:      RADIUS.pill,
+      paddingHorizontal: SPACE.md,
+      paddingVertical:   SPACE.xs,
+    },
+    chipText: {
+      fontSize:   FONT.xs,
+      fontWeight: '700',
+    },
+  });
+
   const candidate = StyleSheet.create({
     row: {
-      marginBottom: SPACE.md,
+      marginBottom: SPACE.sm,
     },
     meta: {
       flexDirection: 'row',
       alignItems:    'center',
-      marginBottom:  6,
+      marginBottom:  5,
     },
     rankBadge: {
-      width:           22,
-      height:          22,
-      borderRadius:    11,
+      width:           20,
+      height:          20,
+      borderRadius:    10,
       backgroundColor: C.surface2,
       alignItems:      'center',
       justifyContent:  'center',
@@ -207,34 +211,34 @@ export function makeStyles(C: ThemeColors) {
       fontWeight: '800',
     },
     name: {
-      flex:       1,
-      color:      C.text,
-      fontSize:   FONT.base,
-      fontWeight: '600',
+      flex:          1,
+      color:         C.text,
+      fontSize:      FONT.sm,
+      fontWeight:    '600',
+      letterSpacing: 0.1,
     },
     votes: {
-      fontSize:   FONT.base,
-      fontWeight: '800',
+      fontSize:      FONT.sm,
+      fontWeight:    '800',
+      letterSpacing: 0.2,
+      marginRight:   SPACE.xs,
+    },
+    pct: {
+      fontSize:    FONT.xs,
+      fontWeight:  '600',
+      color:       C.textMuted,
+      minWidth:    32,
+      textAlign:   'right',
     },
     barTrack: {
-      height:          8,
+      height:          6,
       backgroundColor: C.surface2,
-      borderRadius:    4,
+      borderRadius:    3,
       overflow:        'hidden',
-      flexDirection:   'row',
-      alignItems:      'center',
     },
     barFill: {
       height:       '100%',
-      borderRadius: 4,
-    },
-    pctLabel: {
-      position:      'absolute',
-      right:         0,
-      color:         C.textMuted,
-      fontSize:      FONT.xs,
-      fontWeight:    '700',
-      paddingRight:  4,
+      borderRadius: 3,
     },
   });
 

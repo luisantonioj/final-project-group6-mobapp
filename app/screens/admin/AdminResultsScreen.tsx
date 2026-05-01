@@ -53,10 +53,10 @@ function CandidateBar({ candidate, total, rank, accentColor, S }: {
         </View>
         <Text style={S.candidate.name} numberOfLines={1}>{candidate.name}</Text>
         <Text style={[S.candidate.votes, { color: accentColor }]}>{candidate.votes}</Text>
+        <Text style={S.candidate.pct}>{pct}%</Text>
       </View>
       <View style={S.candidate.barTrack}>
         <View style={[S.candidate.barFill, { width: `${pct}%`, backgroundColor: isLeading ? accentColor : accentColor + '66' }]} />
-        <Text style={S.candidate.pctLabel}>{pct}%</Text>
       </View>
     </View>
   );
@@ -65,25 +65,22 @@ function CandidateBar({ candidate, total, rank, accentColor, S }: {
 function PositionCard({ position, accentColor, S }: {
   position: LivePosition; accentColor: string; S: AdminResultsStyles;
 }) {
-  const icon = POSITION_ICONS[position.position_name] ?? '🗳️';
-  
   return (
     <View style={S.card.wrapper}>
       <View style={S.card.header}>
-        <Text style={S.card.icon}>{icon}</Text>
         <Text style={S.card.title}>{position.position_name}</Text>
-        <View style={[S.card.badge, { borderColor: accentColor }]}>
+        {/* <View style={[S.card.badge, { borderColor: accentColor }]}>
           <Text style={[S.card.badgeText, { color: accentColor }]}>{position.totalVotes} votes</Text>
-        </View>
+        </View> */}
       </View>
       {position.candidates.map((candidate, idx) => (
-        <CandidateBar 
-          key={candidate.id} 
-          candidate={candidate} 
-          total={position.totalVotes} 
-          rank={idx} 
-          accentColor={accentColor} 
-          S={S} 
+        <CandidateBar
+          key={candidate.id}
+          candidate={candidate}
+          total={position.totalVotes}
+          rank={idx}
+          accentColor={accentColor}
+          S={S}
         />
       ))}
     </View>
@@ -94,11 +91,10 @@ function CollegeSection({ college, positions, S }: {
   college: string; positions: LivePosition[]; S: AdminResultsStyles;
 }) {
   const color = COLLEGE_COLORS[college] ?? '#888';
-  
-  // Calculate total votes for this specific college
-  const totalAllVotes = positions.reduce((sum, p) => sum + p.totalVotes, 0);
-  
-  // Don't render empty sections
+  const studentTurnout = positions.length > 0 
+    ? Math.max(...positions.map(p => p.totalVotes)) 
+    : 0;
+    
   if (positions.length === 0) return null;
 
   return (
@@ -106,15 +102,26 @@ function CollegeSection({ college, positions, S }: {
       <View style={[S.college.banner, { borderLeftColor: color }]}>
         <View>
           <Text style={S.college.name}>{college}</Text>
-          <Text style={S.college.stat}>{totalAllVotes.toLocaleString()} total votes cast</Text>
+          <Text style={S.college.stat}>{studentTurnout.toLocaleString()} {college === 'Executive Council' ? 'overall students voted' : 'students voted'}
+          </Text>
         </View>
         <View style={[S.college.chip, { backgroundColor: color + '22' }]}>
           <Text style={[S.college.chipText, { color }]}>{positions.length} positions</Text>
         </View>
       </View>
-      {positions.map(pos => (
-        <PositionCard key={pos.id} position={pos} accentColor={color} S={S} />
-      ))}
+      {positions.map(pos => {
+        const cleanName = college !== 'Executive Council' && pos.position_name.startsWith(college + ' ')
+          ? pos.position_name.slice(college.length + 1)
+          : pos.position_name;
+        return (
+          <PositionCard
+            key={pos.id}
+            position={{ ...pos, position_name: cleanName }}
+            accentColor={color}
+            S={S}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -133,7 +140,16 @@ export function AdminResultsScreen() {
 
   // Calculate the massive global total across everything
   const grandTotal = useMemo(() => {
-    return positions.reduce((sum, pos) => sum + pos.totalVotes, 0);
+    // Filter out just the Executive Council positions
+    const execPositions = positions.filter(p => (p.college || 'Executive Council') === 'Executive Council');
+    
+    // If we have Exec positions, the highest vote count among them is our total voter turnout.
+    if (execPositions.length > 0) {
+      return Math.max(...execPositions.map(p => p.totalVotes));
+    }
+    
+    // Fallback: If no Exec positions exist for some reason, just check the highest position globally
+    return positions.length > 0 ? Math.max(...positions.map(p => p.totalVotes)) : 0;
   }, [positions]);
 
   // Group and filter the data dynamically based on the active tab
@@ -167,7 +183,7 @@ export function AdminResultsScreen() {
         <View>
           <Text style={S.screen.headerTitle}>Live Results</Text>
           <Text style={S.screen.headerSub}>
-            Total votes cast: {grandTotal.toLocaleString()}
+            Total student turnout: {grandTotal.toLocaleString()}
           </Text>
         </View>
         
@@ -236,18 +252,16 @@ export function AdminResultsScreen() {
 
           {/* ── Content ── */}
           {isError ? (
-            <View style={S.empty.wrapper}>
-              <Text style={S.empty.icon}>⚠️</Text>
-              <Text style={S.empty.title}>Failed to load</Text>
-              <Text style={S.empty.body}>{error || 'Could not connect to live results.'}</Text>
-            </View>
-          ) : groupedSections.length === 0 ? (
-            <View style={S.empty.wrapper}>
-              <Text style={S.empty.icon}>🗳️</Text>
-              <Text style={S.empty.title}>No Results</Text>
-              <Text style={S.empty.body}>No positions found for {activeTab}.</Text>
-            </View>
-          ) : (
+              <View style={S.empty.wrapper}>
+                <Text style={S.empty.title}>Failed to load</Text>
+                <Text style={S.empty.body}>{error || 'Could not connect to live results.'}</Text>
+              </View>
+            ) : groupedSections.length === 0 ? (
+              <View style={S.empty.wrapper}>
+                <Text style={S.empty.title}>No Results</Text>
+                <Text style={S.empty.body}>No positions found for {activeTab}.</Text>
+              </View>
+            ) : (
             groupedSections.map(({ college, positions }) => (
               <CollegeSection key={college} college={college} positions={positions} S={S} />
             ))

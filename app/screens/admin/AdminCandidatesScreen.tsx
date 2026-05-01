@@ -23,8 +23,6 @@ import { usePositions } from '../../hooks/usePositions';
 import {
   useCandidateStore,
   DEPARTMENTS,
-  EXECUTIVE_POSITIONS,
-  DEPARTMENT_POSITIONS,
 } from '../../stores/candidateStore';
 import type { Candidate, Department, Position } from '../../stores/candidateStore';
 
@@ -143,19 +141,34 @@ function validateForm(
   return errors;
 }
 
-// ─── Department selector (pill row) ──────────────────────────────────────────
+// ─── Department selector with inline add/delete ───────────────────────────────
 
 const DepartmentSelector: React.FC<{
-  selected: string;
-  onChange: (dept: Department) => void;
-}> = ({ selected, onChange }) => {
+  selected:    string;
+  departments: string[];
+  onChange:    (dept: string) => void;
+  onAdd:       (name: string) => void;
+  onDelete:    (dept: string) => void;
+}> = ({ selected, departments, onChange, onAdd, onDelete }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
+  const [adding,  setAdding]  = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const handleConfirmAdd = () => {
+    const trimmed = newName.trim();
+    if (trimmed && !departments.includes(trimmed)) {
+      onAdd(trimmed);
+      onChange(trimmed);
+    }
+    setNewName('');
+    setAdding(false);
+  };
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={S.form.positionScrollRow}>
       <View style={S.form.positionInnerRow}>
-        {DEPARTMENTS.map(d => (
+        {departments.map(d => (
           <Pressable
             key={d}
             style={({ pressed }) => [
@@ -164,26 +177,72 @@ const DepartmentSelector: React.FC<{
               pressed && { opacity: 0.85 },
             ]}
             onPress={() => onChange(d)}
+            onLongPress={() =>
+              Alert.alert(
+                'Delete Department',
+                `Remove "${d}" and all its positions? This cannot be undone.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(d) },
+                ],
+              )
+            }
           >
             <Text style={[S.form.positionTabText, selected === d && S.form.positionTabTextActive]}>
               {d}
             </Text>
           </Pressable>
         ))}
+
+        {adding ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.xs }}>
+            <TextInput
+              autoFocus
+              value={newName}
+              onChangeText={setNewName}
+              onSubmitEditing={handleConfirmAdd}
+              onBlur={() => { setAdding(false); setNewName(''); }}
+              placeholder="e.g. CNAHS"
+              placeholderTextColor={C.textMuted}
+              style={[S.form.positionTab, { minWidth: 100, color: C.text }]}
+            />
+            <Pressable onPress={handleConfirmAdd} style={[S.form.positionTab, S.form.positionTabActive]}>
+              <Text style={[S.form.positionTabText, S.form.positionTabTextActive]}>✓</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setAdding(true)} style={[S.form.positionTab, { borderStyle: 'dashed' }]}>
+            <Text style={[S.form.positionTabText, { color: C.textMuted }]}>＋ Dept</Text>
+          </Pressable>
+        )}
       </View>
     </ScrollView>
   );
 };
 
-// ─── Position pill selector ───────────────────────────────────────────────────
+// ─── Position selector with inline add/delete ─────────────────────────────────
 
 const PositionSelector: React.FC<{
-  positions: readonly string[];
+  positions: string[];
   selected:  string;
   onChange:  (pos: string) => void;
-}> = ({ positions, selected, onChange }) => {
+  onAdd:     (name: string) => void;    // cleanName only — dept context is in parent
+  onDelete:  (name: string) => void;
+}> = ({ positions, selected, onChange, onAdd, onDelete }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
+  const [adding,  setAdding]  = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const handleConfirmAdd = () => {
+    const trimmed = newName.trim();
+    if (trimmed && !positions.includes(trimmed)) {
+      onAdd(trimmed);
+      onChange(trimmed);
+    }
+    setNewName('');
+    setAdding(false);
+  };
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={S.form.positionScrollRow}>
@@ -197,12 +256,44 @@ const PositionSelector: React.FC<{
               pressed && { opacity: 0.85 },
             ]}
             onPress={() => onChange(p)}
+            onLongPress={() =>
+              Alert.alert(
+                'Delete Position',
+                `Remove "${p}"? Candidates under this position will lose their assignment.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(p) },
+                ],
+              )
+            }
           >
             <Text style={[S.form.positionTabText, selected === p && S.form.positionTabTextActive]}>
               {p}
             </Text>
           </Pressable>
         ))}
+
+        {adding ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.xs }}>
+            <TextInput
+              autoFocus
+              value={newName}
+              onChangeText={setNewName}
+              onSubmitEditing={handleConfirmAdd}
+              onBlur={() => { setAdding(false); setNewName(''); }}
+              placeholder="e.g. Auditor"
+              placeholderTextColor={C.textMuted}
+              style={[S.form.positionTab, { minWidth: 100, color: C.text }]}
+            />
+            <Pressable onPress={handleConfirmAdd} style={[S.form.positionTab, S.form.positionTabActive]}>
+              <Text style={[S.form.positionTabText, S.form.positionTabTextActive]}>✓</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setAdding(true)} style={[S.form.positionTab, { borderStyle: 'dashed' }]}>
+            <Text style={[S.form.positionTabText, { color: C.textMuted }]}>＋ Position</Text>
+          </Pressable>
+        )}
       </View>
     </ScrollView>
   );
@@ -211,14 +302,18 @@ const PositionSelector: React.FC<{
 // ─── Add / Edit form bottom sheet ─────────────────────────────────────────────
 
 const CandidateFormSheet: React.FC<{
-  visible:         boolean;
-  editId:          string | null;
-  initial:         FormState;
-  candidates:      Candidate[];
-  parsedPositions: ParsedPosition[];
-  onClose:         () => void;
-  onSave:          (id: string | null, data: FormState) => void;
-}> = ({ visible, editId, initial, candidates, parsedPositions, onClose, onSave }) => {
+  visible:            boolean;
+  editId:             string | null;
+  initial:            FormState;
+  candidates:         Candidate[];
+  parsedPositions:    ParsedPosition[];
+  onClose:            () => void;
+  onSave:             (id: string | null, data: FormState) => void;
+  onAddPosition:      (dept: string, cleanName: string) => Promise<void>;
+  onDeletePosition:   (dept: string, cleanName: string) => Promise<void>;
+  onDeleteDepartment: (dept: string) => Promise<void>;
+}> = ({ visible, editId, initial, candidates, parsedPositions, onClose, onSave,
+        onAddPosition, onDeletePosition, onDeleteDepartment }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
 
@@ -226,12 +321,14 @@ const CandidateFormSheet: React.FC<{
   const [errors,        setErrors]        = useState<FormErrors>({});
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [isSaving,      setIsSaving]      = useState(false);
+  const [extraDepts,    setExtraDepts]    = useState<string[]>([]);
 
   useEffect(() => {
     setFormState(initial);
     setErrors({});
     setSaveAttempted(false);
     setIsSaving(false);
+    setExtraDepts([]);
   }, [initial, visible]);
 
   const setField = useCallback((field: keyof FormState, value: string | null) => {
@@ -242,17 +339,51 @@ const CandidateFormSheet: React.FC<{
     });
   }, []);
 
-  // Merge static defaults with any DB positions for this department
-  const availablePositions: readonly string[] = useMemo(() => {
+  const allDepartments = useMemo(() => {
+    const fromDB = Array.from(new Set(parsedPositions.map(p => p.department)));
+    return Array.from(new Set([...DEPARTMENTS, ...fromDB, ...extraDepts]));
+  }, [parsedPositions, extraDepts]);
+
+  const availablePositions = useMemo(() => {
     if (!form.department) return [];
-    const defaults = form.department === 'Executive Council'
-      ? EXECUTIVE_POSITIONS
-      : DEPARTMENT_POSITIONS;
-    const dbAvail = parsedPositions
+    return parsedPositions
       .filter(p => p.department === form.department)
       .map(p => p.clean_name);
-    return Array.from(new Set([...defaults, ...dbAvail]));
   }, [form.department, parsedPositions]);
+
+  const handleAddDept = useCallback((name: string) => {
+    setExtraDepts(prev => [...prev, name]);
+  }, []);
+
+  const handleDeleteDept = useCallback(async (dept: string) => {
+    try {
+      await onDeleteDepartment(dept);
+      setExtraDepts(prev => prev.filter(d => d !== dept));
+      if (form.department === dept) setField('department', '');
+    } catch (err: any) {
+      Alert.alert('Delete Failed', err.message);
+    }
+  }, [form.department, onDeleteDepartment, setField]);
+
+  // PositionSelector passes only cleanName — we inject dept from form state here
+  const handleAddPosition = useCallback(async (cleanName: string) => {
+    if (!form.department) return;
+    try {
+      await onAddPosition(form.department, cleanName);
+    } catch (err: any) {
+      Alert.alert('Add Failed', err.message);
+    }
+  }, [form.department, onAddPosition]);
+
+  const handleDeletePosition = useCallback(async (cleanName: string) => {
+    if (!form.department) return;
+    try {
+      await onDeletePosition(form.department, cleanName);
+      if (form.position === cleanName) setField('position', '');
+    } catch (err: any) {
+      Alert.alert('Delete Failed', err.message);
+    }
+  }, [form.department, form.position, onDeletePosition, setField]);
 
   const currentErrors = useMemo(
     () => validateForm(form, candidates, editId),
@@ -359,13 +490,25 @@ const CandidateFormSheet: React.FC<{
 
           {/* Department */}
           <Text style={S.form.fieldLabel}>Department *</Text>
-          <DepartmentSelector selected={form.department} onChange={d => setField('department', d)} />
+          <DepartmentSelector
+            selected={form.department}
+            departments={allDepartments}
+            onChange={d => setField('department', d)}
+            onAdd={handleAddDept}
+            onDelete={handleDeleteDept}
+          />
           {visibleErrors.department ? <Text style={{ fontSize: FONT.xs, color: C.red, marginTop: 3 }}>{visibleErrors.department}</Text> : null}
 
           {/* Position */}
           <Text style={S.form.fieldLabel}>Position *</Text>
           {form.department ? (
-            <PositionSelector positions={availablePositions} selected={form.position} onChange={p => setField('position', p)} />
+            <PositionSelector
+              positions={availablePositions}
+              selected={form.position}
+              onChange={p => setField('position', p)}
+              onAdd={handleAddPosition}
+              onDelete={handleDeletePosition}
+            />
           ) : (
             <Text style={{ fontSize: FONT.sm, color: C.textMuted, fontStyle: 'italic', marginBottom: SPACE.sm }}>
               Select a department first.
@@ -484,7 +627,7 @@ const CandidateCard: React.FC<{
   );
 };
 
-// ─── Position section header with enable/disable toggle (original UI) ─────────
+// ─── Position section header with enable/disable toggle ───────────────────────
 
 const PositionHeader: React.FC<{
   positionName: string;
@@ -532,11 +675,8 @@ function AdminCandidatesScreen() {
   const disabledPositions      = useCandidateStore(state => state.disabledPositions);
   const togglePositionDisabled = useCandidateStore(state => state.togglePositionDisabled);
 
-  // ─── Supabase Queries & Mutations ─────────────────────────────────────────
-
   const { data: dbPositions = [] } = usePositions();
 
-  // Parse positions using pos.college as source of truth (not string inference)
   const parsedPositions: ParsedPosition[] = useMemo(() => {
     return dbPositions.map(p => {
       const dept      = p.college || 'Executive Council';
@@ -578,7 +718,6 @@ function AdminCandidatesScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['candidates'] }),
   });
 
-  // Use pos.college — not string prefix matching
   const candidates: Candidate[] = useMemo(() => {
     return dbCandidates.map((c: any) => {
       const posRow      = dbPositions.find(p => p.id === c.position_id);
@@ -611,7 +750,6 @@ function AdminCandidatesScreen() {
   const [formInitial,     setFormInitial]     = useState<FormState>(EMPTY_FORM);
   const [viewedCandidate, setViewedCandidate] = useState<Candidate | null>(null);
 
-  // Use pos.college for grouping — mirrors AdminResultsScreen exactly
   const grouped = useMemo(() => {
     const deptMap: Record<string, { positionName: string; positionId: string; items: Candidate[] }[]> = {};
 
@@ -629,8 +767,13 @@ function AdminCandidatesScreen() {
       });
     }
 
-    const visibleDepts: readonly string[] =
-      activeFilter === 'all' ? DEPARTMENTS : [activeFilter];
+    // Derive visible depts dynamically from DB so added depts show up
+    const allKnownDepts = Array.from(new Set([
+      ...DEPARTMENTS,
+      ...Object.keys(deptMap),
+    ]));
+
+    const visibleDepts = activeFilter === 'all' ? allKnownDepts : [activeFilter];
 
     return visibleDepts
       .filter(dept => deptMap[dept])
@@ -678,7 +821,6 @@ function AdminCandidatesScreen() {
 
   const handleSave = useCallback(async (id: string | null, data: FormState) => {
     if (!data.department || !data.position) return;
-
     try {
       const expectedPosName = data.department === 'Executive Council'
         ? data.position
@@ -699,11 +841,11 @@ function AdminCandidatesScreen() {
 
       const payload = {
         name:        data.name.trim(),
-        partylist:   data.partylist.trim()    || null,
+        partylist:   data.partylist.trim()   || null,
         position_id: posId,
-        email:       data.email.trim()        || null,
-        credentials: data.credentials.trim()  || null,
-        platform:    data.platform.trim()     || null,
+        email:       data.email.trim()       || null,
+        credentials: data.credentials.trim() || null,
+        platform:    data.platform.trim()    || null,
         photo_url:   data.photo_uri,
       };
 
@@ -719,6 +861,42 @@ function AdminCandidatesScreen() {
     }
   }, [dbPositions, addMutation, updateMutation, queryClient]);
 
+  // ─── Position/Department CRUD (live in parent, passed as props) ───────────
+
+  const handleAddPosition = useCallback(async (dept: string, cleanName: string) => {
+    const fullName = dept === 'Executive Council' ? cleanName : `${dept} ${cleanName}`;
+    if (dbPositions.find(p => p.position_name === fullName)) return;
+    const { error } = await supabase
+      .from('Positions')
+      .insert([{ position_name: fullName, college: dept === 'Executive Council' ? null : dept }]);
+    if (error) throw new Error(error.message);
+    queryClient.invalidateQueries({ queryKey: ['positions'] });
+  }, [dbPositions, queryClient]);
+
+  const handleDeletePosition = useCallback(async (dept: string, cleanName: string) => {
+    const fullName = dept === 'Executive Council' ? cleanName : `${dept} ${cleanName}`;
+    const pos = dbPositions.find(p => p.position_name === fullName);
+    if (!pos) return;
+    if (candidates.some(c => c.position_id === pos.id)) {
+      throw new Error(`"${cleanName}" still has candidates. Remove them first.`);
+    }
+    const { error } = await supabase.from('Positions').delete().eq('id', pos.id);
+    if (error) throw new Error(error.message);
+    queryClient.invalidateQueries({ queryKey: ['positions'] });
+  }, [dbPositions, candidates, queryClient]);
+
+  const handleDeleteDepartment = useCallback(async (dept: string) => {
+    const deptPositions = dbPositions.filter(p => (p.college || 'Executive Council') === dept);
+    if (deptPositions.some(pos => candidates.some(c => c.position_id === pos.id))) {
+      throw new Error(`"${dept}" still has candidates. Remove them first.`);
+    }
+    if (deptPositions.length > 0) {
+      const { error } = await supabase.from('Positions').delete().in('id', deptPositions.map(p => p.id));
+      if (error) throw new Error(error.message);
+      queryClient.invalidateQueries({ queryKey: ['positions'] });
+    }
+  }, [dbPositions, candidates, queryClient]);
+
   const renderCards = useCallback((list: Candidate[]) =>
     list.map(c => (
       <CandidateCard
@@ -731,12 +909,11 @@ function AdminCandidatesScreen() {
     )),
   [openEdit, confirmDelete]);
 
-  // ─── Main UI (original) ───────────────────────────────────────────────────
+  // ─── Main UI ──────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={S.screen.container} edges={['top', 'left', 'right']}>
 
-      {/* Header */}
       <View style={S.screen.header}>
         <View>
           <Text style={S.screen.headerTitle}>Candidates</Text>
@@ -757,7 +934,6 @@ function AdminCandidatesScreen() {
       ) : (
         <ScrollView contentContainerStyle={S.screen.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* Department filter tabs (original) */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={S.filter.scrollRow}>
             <View style={S.filter.innerRow}>
               <Pressable
@@ -778,11 +954,8 @@ function AdminCandidatesScreen() {
             </View>
           </ScrollView>
 
-          {/* Grouped candidate list */}
           {grouped.map(({ department, positionGroups }) => (
             <View key={department}>
-
-              {/* Original department section label */}
               {activeFilter === 'all' && (
                 <Text style={[S.screen.sectionLabel, { marginTop: SPACE.lg }]}>
                   {department}
@@ -793,7 +966,6 @@ function AdminCandidatesScreen() {
                 const isDisabled = disabledPositions.has(positionId);
                 return (
                   <View key={positionId}>
-
                     <PositionHeader
                       positionName={positionName}
                       positionId={positionId}
@@ -816,7 +988,6 @@ function AdminCandidatesScreen() {
                         </Text>
                       </View>
                     ) : renderCards(items)}
-
                   </View>
                 );
               })}
@@ -834,6 +1005,9 @@ function AdminCandidatesScreen() {
         parsedPositions={parsedPositions}
         onClose={() => setFormVisible(false)}
         onSave={handleSave}
+        onAddPosition={handleAddPosition}
+        onDeletePosition={handleDeletePosition}
+        onDeleteDepartment={handleDeleteDepartment}
       />
 
       <CandidateModal
