@@ -98,7 +98,6 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
-          parent_id: string | null
           post_id: string
           student_id: string
         }
@@ -106,7 +105,6 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
-          parent_id?: string | null
           post_id: string
           student_id: string
         }
@@ -114,49 +112,12 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
-          parent_id?: string | null
           post_id?: string
           student_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "Comments_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "Comments"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "Comments_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "Posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      Likes: {
-        Row: {
-          created_at: string | null
-          id: string
-          post_id: string
-          student_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          post_id: string
-          student_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          post_id?: string
-          student_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "Likes_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "Posts"
@@ -421,21 +382,18 @@ export type Database = {
       UserRoles: {
         Row: {
           assigned_at: string | null
-          auth_id: string | null
           id: string
           role_id: string
           user_id: string
         }
         Insert: {
           assigned_at?: string | null
-          auth_id?: string | null
           id?: string
           role_id: string
           user_id: string
         }
         Update: {
           assigned_at?: string | null
-          auth_id?: string | null
           id?: string
           role_id?: string
           user_id?: string
@@ -544,36 +502,61 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      active_election_id: { Args: never; Returns: string }
       admin_lookup_user_id_by_email: {
         Args: { p_email: string }
         Returns: string
-      },
+      }
+      archive_election: { Args: { p_new_label?: string }; Returns: Json }
       cast_vote: {
         Args: { p_candidate_id: string; p_position_id: string }
         Returns: Json
       }
       current_user_id: { Args: never; Returns: string }
       delete_candidate: { Args: { p_candidate_id: string }; Returns: Json }
-      get_live_results: {
-        Args: never
-        Returns: {
-          candidate_id: string
-          percentage: number
-          position_id: string
-          position_name: string
-        }[]
-      }
-      get_vote_tally: {
-        Args: never
-        Returns: {
-          candidate_id: string
-          candidate_name: string
-          partylist: string
-          position_id: string
-          position_name: string
-          vote_count: number
-        }[]
-      }
+      get_ballot_positions: { Args: never; Returns: Json }
+      get_live_results:
+        | {
+            Args: never
+            Returns: {
+              candidate_id: string
+              percentage: number
+              position_id: string
+              position_name: string
+            }[]
+          }
+        | {
+            Args: { p_election_id?: string }
+            Returns: {
+              candidate_id: string
+              percentage: number
+              position_id: string
+              position_name: string
+            }[]
+          }
+      get_vote_tally:
+        | {
+            Args: never
+            Returns: {
+              candidate_id: string
+              candidate_name: string
+              partylist: string
+              position_id: string
+              position_name: string
+              vote_count: number
+            }[]
+          }
+        | {
+            Args: { p_election_id?: string }
+            Returns: {
+              candidate_id: string
+              candidate_name: string
+              partylist: string
+              position_id: string
+              position_name: string
+              vote_count: number
+            }[]
+          }
       has_role: { Args: { role_name: string }; Returns: boolean }
       invalidate_vote: { Args: { p_vote_id: string }; Returns: Json }
     }

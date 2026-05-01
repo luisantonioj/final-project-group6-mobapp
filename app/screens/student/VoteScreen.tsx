@@ -1,28 +1,29 @@
 /**
  * app/screens/student/VoteScreen.tsx
  *
- * Ballot screen — reads live candidate data from candidateStore (Zustand).
- * No backend calls. No Supabase. Frontend-only.
+ * Ballot screen — reads live candidate data from Supabase and submits 
+ * securely using the authenticated user's session.
  *
  * FLOW:
- *   1. Setup phase   — student selects department + gives consent
- *   2. Ballot phase  — vote on Executive Council & Department positions
- *   3. Success phase — confirmation screen after submission
- *
- * STORE USAGE:
- *   candidateStore  → getCandidatesForBallot(), disabledPositions
- *   votingStore     → selectedCandidates, selectCandidate, reset
+ * 1. Setup phase   — student selects department + gives consent
+ * 2. Ballot phase  — vote on Executive Council & Department positions
+ * 3. Success phase — confirmation screen after submission (or Already Voted state)
  */
 import React, { useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from 'react';
 import {
   View, Text, Pressable, StyleSheet,
   ScrollView, Modal, Animated, Image, Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useCandidateStore, DEPARTMENTS } from '../../stores/candidateStore';
-import type { Candidate, Department, BallotPosition } from '../../stores/candidateStore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../../utils/supabase';
+
+import { useAuthStore } from '../../stores/authStore';
+import { useCandidateStore, DEPARTMENTS, EXECUTIVE_POSITIONS, DEPARTMENT_POSITIONS } from '../../stores/candidateStore';
+import type { Candidate, Department, BallotPosition, Position } from '../../stores/candidateStore';
 import { useVotingStore } from '../../stores/votingStore';
 import { CandidateModal } from '../../components/CandidateModal';
 import type { CandidateRow } from '../../components/CandidateModal';
@@ -37,7 +38,7 @@ const useVC = () => useContext(VoteContext);
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type VoterDepartment = Exclude<Department, 'Executive Council'>;
-type Phase = 'setup' | 'ballot' | 'success';
+type Phase = 'setup' | 'ballot' | 'success' | 'already_voted';
 interface ConfirmEntry { positionName: string; candidateName: string; partylist: string | null; department: Department; }
 
 const VOTER_DEPARTMENTS = DEPARTMENTS.filter((d): d is VoterDepartment => d !== 'Executive Council');
@@ -131,7 +132,7 @@ const PositionCard: React.FC<{ ballotPosition: BallotPosition; selectedId: strin
 };
 
 // ─── ConfirmModal ──────────────────────────────────────────────────────────────
-const ConfirmModal: React.FC<{ visible: boolean; entries: ConfirmEntry[]; onSubmit: () => void; onCancel: () => void }> = ({ visible, entries, onSubmit, onCancel }) => {
+const ConfirmModal: React.FC<{ visible: boolean; isSubmitting: boolean; entries: ConfirmEntry[]; onSubmit: () => void; onCancel: () => void }> = ({ visible, isSubmitting, entries, onSubmit, onCancel }) => {
   const { C, s } = useVC();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -143,7 +144,7 @@ const ConfirmModal: React.FC<{ visible: boolean; entries: ConfirmEntry[]; onSubm
               <Text style={s.modalTitle}>Confirm Your Votes</Text>
               <Text style={s.modalSubtitle}>Review carefully — this cannot be undone.</Text>
             </View>
-            <Pressable onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={({ pressed }) => pressed && { opacity: 0.75 }}>
+            <Pressable onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={({ pressed }) => pressed && { opacity: 0.75 }} disabled={isSubmitting}>
               <Ionicons name="close" size={20} color={C.textMuted} />
             </Pressable>
           </View>
@@ -161,10 +162,16 @@ const ConfirmModal: React.FC<{ visible: boolean; entries: ConfirmEntry[]; onSubm
             <View style={{ height: 8 }} />
           </ScrollView>
           <View style={s.modalActions}>
-            <Pressable style={({ pressed }) => [s.modalCancelBtn, pressed && { opacity: 0.85 }]} onPress={onCancel}><Text style={s.modalCancelText}>Review Again</Text></Pressable>
-            <Pressable style={({ pressed }) => [s.modalSubmitBtn, pressed && { opacity: 0.88 }]} onPress={onSubmit}>
-              <Ionicons name="send" size={15} color="#fff" />
-              <Text style={s.modalSubmitText}>Submit Votes</Text>
+            <Pressable style={({ pressed }) => [s.modalCancelBtn, pressed && { opacity: 0.85 }]} onPress={onCancel} disabled={isSubmitting}><Text style={s.modalCancelText}>Review Again</Text></Pressable>
+            <Pressable style={({ pressed }) => [s.modalSubmitBtn, (isSubmitting || pressed) && { opacity: 0.88 }]} onPress={onSubmit} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="send" size={15} color="#fff" />
+                  <Text style={s.modalSubmitText}>Submit Votes</Text>
+                </>
+              )}
             </Pressable>
           </View>
         </View>
@@ -174,9 +181,9 @@ const ConfirmModal: React.FC<{ visible: boolean; entries: ConfirmEntry[]; onSubm
 };
 
 // ─── SetupScreen ───────────────────────────────────────────────────────────────
-const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept: (d: VoterDepartment) => void; consented: boolean; onToggleConsent: () => void; onBegin: () => void }> = ({ selectedDept, onSelectDept, consented, onToggleConsent, onBegin }) => {
+const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept: (d: VoterDepartment) => void; consented: boolean; onToggleConsent: () => void; onBegin: () => void; isLoading: boolean }> = ({ selectedDept, onSelectDept, consented, onToggleConsent, onBegin, isLoading }) => {
   const { C, s } = useVC();
-  const canBegin = !!selectedDept && consented;
+  const canBegin = !!selectedDept && consented && !isLoading;
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={s.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -234,8 +241,14 @@ const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept
         onPress={onBegin}
         disabled={!canBegin}
       >
-        <Ionicons name="chevron-forward-circle-outline" size={20} color={canBegin ? '#fff' : C.textMuted} />
-        <Text style={[s.beginBtnText, !canBegin && s.beginBtnTextDisabled]}>Begin Voting</Text>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={C.textMuted} />
+        ) : (
+          <>
+            <Ionicons name="chevron-forward-circle-outline" size={20} color={canBegin ? '#fff' : C.textMuted} />
+            <Text style={[s.beginBtnText, !canBegin && s.beginBtnTextDisabled]}>Begin Voting</Text>
+          </>
+        )}
       </Pressable>
 
       <View style={s.setupFooter}>
@@ -247,13 +260,20 @@ const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept
 };
 
 // ─── SuccessScreen ─────────────────────────────────────────────────────────────
-const SuccessScreen: React.FC = () => {
+const SuccessScreen: React.FC<{ alreadyVoted?: boolean }> = ({ alreadyVoted }) => {
   const { C, s } = useVC();
   return (
     <View style={s.successContainer}>
-      <View style={s.successIconWrap}><Ionicons name="checkmark-circle" size={80} color={C.greenBright} /></View>
-      <Text style={s.successTitle}>Vote Submitted!</Text>
-      <Text style={s.successBody}>{'Your choices have been securely recorded.\n\nThank you for participating in the DLSL Student Council Election, Lasallian!'}</Text>
+      <View style={s.successIconWrap}>
+        <Ionicons name={alreadyVoted ? "information-circle" : "checkmark-circle"} size={80} color={C.greenBright} />
+      </View>
+      <Text style={s.successTitle}>{alreadyVoted ? 'Already Voted' : 'Vote Submitted!'}</Text>
+      <Text style={s.successBody}>
+        {alreadyVoted 
+          ? 'You have already cast your ballot for this election.\n\nThank you for participating!'
+          : 'Your choices have been securely recorded.\n\nThank you for participating in the DLSL Student Council Election, Lasallian!'
+        }
+      </Text>
       <View style={s.successBadge}>
         <Ionicons name="shield-checkmark-outline" size={14} color={C.textSub} />
         <Text style={s.successBadgeText}> Secured by AnimoQuorum</Text>
@@ -269,7 +289,9 @@ export function VoteScreen() {
   const s      = useMemo(() => makeStyles(C), [C]);
   const ctxVal = useMemo(() => ({ C, s }), [C, s]);
 
-  const { getCandidatesForBallot, disabledPositions } = useCandidateStore();
+  const queryClient = useQueryClient();
+  const userProfile = useAuthStore(state => state.userProfile);
+  const disabledPositions = useCandidateStore(state => state.disabledPositions);
   const { selectedCandidates, selectCandidate, reset } = useVotingStore();
 
   const [phase, setPhase]               = useState<Phase>('setup');
@@ -277,17 +299,137 @@ export function VoteScreen() {
   const [consented, setConsented]       = useState(false);
   const [viewedCandidate, setViewedCandidate] = useState<Candidate | null>(null);
   const [confirmVisible, setConfirmVisible]   = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const didNotifyRef = useRef(false);
 
   useEffect(() => {
     if (!didNotifyRef.current) { didNotifyRef.current = true; notifyVotingStarted(); }
   }, []);
 
+  // ─── Supabase Queries & Mutations ──────────────────────────────────────────
+
+  const { data: dbCandidates = [], isLoading: isLoadingCandidates } = useQuery({
+    queryKey: ['candidates', 'student'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('Candidates').select('*, Positions(position_name)');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: hasVoted, isLoading: isLoadingVotes } = useQuery({
+    queryKey: ['my_votes', userProfile?.id],
+    queryFn: async () => {
+       if (!userProfile?.id) return false;
+       const { count, error } = await supabase
+         .from('Votes')
+         .select('id', { count: 'exact', head: true })
+         .eq('student_id', userProfile.id);
+       
+       if (error) throw error;
+       return (count ?? 0) > 0;
+    },
+    enabled: !!userProfile?.id
+  });
+
+  // Automatically skip to Already Voted screen if they have previous votes
+  useEffect(() => {
+    if (hasVoted && phase === 'setup') {
+      setPhase('already_voted');
+    }
+  }, [hasVoted, phase]);
+
+  const submitVotesMutation = useMutation({
+    mutationFn: async (selections: Record<string, string>) => {
+      if (!userProfile?.id) throw new Error('You must be logged in to vote.');
+      
+      const votesToInsert = Object.entries(selections).map(([posId, candId]) => ({
+        student_id: userProfile.id,
+        position_id: posId,
+        candidate_id: candId,
+        is_valid: true
+      }));
+
+      const { data, error } = await supabase.from('Votes').insert(votesToInsert);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my_votes'] })
+  });
+
+  // ─── Data Transformations ──────────────────────────────────────────────────
+
+  const candidates: Candidate[] = useMemo(() => {
+    return dbCandidates.map((c: any) => {
+      let dept = 'Executive Council';
+      let posName = c.Positions?.position_name || '';
+
+      for (const d of DEPARTMENTS) {
+        if (d !== 'Executive Council' && posName.startsWith(d)) {
+          dept = d;
+          posName = posName.replace(`${d} `, '').replace(`${d}-`, '');
+          break;
+        }
+      }
+
+      return {
+        id: c.id,
+        name: c.name,
+        partylist: c.partylist || '',
+        position_id: c.position_id,
+        position_name: posName as Position,
+        department: dept as Department,
+        photo_url: c.photo_url,
+        email: c.email,
+        credentials: c.credentials,
+        platform: c.platform,
+      };
+    });
+  }, [dbCandidates]);
+
+  const getCandidatesForBallot = useCallback((voterDepartment: VoterDepartment): BallotPosition[] => {
+    const visible = candidates.filter((c) => {
+      const isExec = c.department === 'Executive Council';
+      const isDeptMatch = c.department === voterDepartment;
+      return isExec || isDeptMatch;
+    });
+
+    const positionMap = new Map<string, BallotPosition>();
+
+    visible.forEach((c) => {
+      if (disabledPositions.has(c.position_id)) return;
+
+      if (!positionMap.has(c.position_id)) {
+        positionMap.set(c.position_id, {
+          position_id: c.position_id,
+          position_name: c.position_name,
+          department: c.department,
+          candidates: [],
+        });
+      }
+      positionMap.get(c.position_id)!.candidates.push(c);
+    });
+
+    const execOrder = [...EXECUTIVE_POSITIONS] as string[];
+    const deptOrder = [...DEPARTMENT_POSITIONS] as string[];
+
+    return [...positionMap.values()].sort((a, b) => {
+      const aExecIdx = execOrder.indexOf(a.position_name);
+      const bExecIdx = execOrder.indexOf(b.position_name);
+      const aDeptIdx = deptOrder.indexOf(a.position_name);
+      const bDeptIdx = deptOrder.indexOf(b.position_name);
+
+      if (aExecIdx !== -1 && bExecIdx !== -1) return aExecIdx - bExecIdx;
+      if (aExecIdx !== -1) return -1;
+      if (bExecIdx !== -1) return 1;
+      return aDeptIdx - bDeptIdx;
+    });
+  }, [candidates, disabledPositions]);
+
   const ballotPositions = useMemo((): BallotPosition[] => {
     if (!selectedDept) return [];
     return getCandidatesForBallot(selectedDept);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDept, getCandidatesForBallot, disabledPositions]);
+  }, [selectedDept, getCandidatesForBallot]);
 
   const execPositions = useMemo(() => ballotPositions.filter(bp => bp.department === 'Executive Council'), [ballotPositions]);
   const deptPositions = useMemo(() => ballotPositions.filter(bp => bp.department !== 'Executive Council'), [ballotPositions]);
@@ -304,6 +446,8 @@ export function VoteScreen() {
     }),
   [ballotPositions, selectedCandidates]);
 
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+
   const handleBegin = useCallback(() => {
     if (!selectedDept || !consented) return;
     reset(); setPhase('ballot');
@@ -317,11 +461,19 @@ export function VoteScreen() {
   }, [reset]);
 
   const handleConfirmSubmit = useCallback(async () => {
-    setConfirmVisible(false);
-    await new Promise(res => setTimeout(res, 600));
-    await notifyVoteSubmitted();
-    reset(); setPhase('success');
-  }, [reset]);
+    setIsSubmitting(true);
+    try {
+      await submitVotesMutation.mutateAsync(selectedCandidates);
+      await notifyVoteSubmitted();
+      setConfirmVisible(false);
+      reset(); 
+      setPhase('success');
+    } catch (err: any) {
+      Alert.alert('Submission Failed', err.message || 'Could not submit votes. You may have already voted.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedCandidates, submitVotesMutation, reset]);
 
   const renderSection = useCallback((label: string, positions: BallotPosition[]) => {
     if (positions.length === 0) return null;
@@ -343,12 +495,19 @@ export function VoteScreen() {
 
         {/* ── Setup phase ── */}
         {phase === 'setup' && (
-          <SetupScreen selectedDept={selectedDept} onSelectDept={setSelectedDept}
-            consented={consented} onToggleConsent={() => setConsented(v => !v)} onBegin={handleBegin} />
+          <SetupScreen 
+            selectedDept={selectedDept} 
+            onSelectDept={setSelectedDept}
+            consented={consented} 
+            onToggleConsent={() => setConsented(v => !v)} 
+            onBegin={handleBegin} 
+            isLoading={isLoadingCandidates || isLoadingVotes}
+          />
         )}
 
-        {/* ── Success phase ── */}
+        {/* ── Success phases ── */}
         {phase === 'success' && <SuccessScreen />}
+        {phase === 'already_voted' && <SuccessScreen alreadyVoted />}
 
         {/* ── Ballot phase ── */}
         {phase === 'ballot' && (
@@ -417,8 +576,13 @@ export function VoteScreen() {
               onSelect={row => { selectCandidate(row.position_id, row.id); setViewedCandidate(null); }}
             />
 
-            <ConfirmModal visible={confirmVisible} entries={confirmEntries}
-              onSubmit={handleConfirmSubmit} onCancel={() => setConfirmVisible(false)} />
+            <ConfirmModal 
+              visible={confirmVisible} 
+              isSubmitting={isSubmitting}
+              entries={confirmEntries}
+              onSubmit={handleConfirmSubmit} 
+              onCancel={() => setConfirmVisible(false)} 
+            />
           </>
         )}
       </SafeAreaView>

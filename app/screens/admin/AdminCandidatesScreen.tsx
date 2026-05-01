@@ -15,12 +15,15 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../../utils/supabase';
+import { useDeleteCandidate } from '../../hooks/useCandidates';
+
 import {
   useCandidateStore,
   DEPARTMENTS,
   EXECUTIVE_POSITIONS,
   DEPARTMENT_POSITIONS,
-  POSITION_IDS,
 } from '../../stores/candidateStore';
 import type { Candidate, Department, Position } from '../../stores/candidateStore';
 
@@ -76,18 +79,6 @@ function getInitials(name: string): string {
     .map(w => w[0] ?? '')
     .join('')
     .toUpperCase();
-}
-
-function resolvePositionId(department: string, position: string): string {
-  const execPositions: readonly string[] = EXECUTIVE_POSITIONS;
-  if (execPositions.includes(position)) {
-    return POSITION_IDS[position] ?? `pos-unknown-${position}`;
-  }
-  return POSITION_IDS[`${department}-${position}`] ?? `pos-unknown-${department}-${position}`;
-}
-
-function generateCandidateId(): string {
-  return `cand-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
 }
 
 /** Adapt new-store Candidate → CandidateRow expected by CandidateModal */
@@ -245,11 +236,13 @@ const CandidateFormSheet: React.FC<{
   const [form,          setFormState]    = useState<FormState>(initial);
   const [errors,        setErrors]       = useState<FormErrors>({});
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [isSaving,      setIsSaving]     = useState(false);
 
   useEffect(() => {
     setFormState(initial);
     setErrors({});
     setSaveAttempted(false);
+    setIsSaving(false);
   }, [initial, visible]);
 
   const setField = useCallback((field: keyof FormState, value: string | null) => {
@@ -297,10 +290,16 @@ const CandidateFormSheet: React.FC<{
     }
   }, [setField]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setSaveAttempted(true);
     if (!isValid) return;
-    onSave(editId, form);
+    
+    setIsSaving(true);
+    try {
+      await onSave(editId, form);
+    } finally {
+      setIsSaving(false);
+    }
   }, [isValid, editId, form, onSave]);
 
   return (
@@ -498,21 +497,25 @@ const CandidateFormSheet: React.FC<{
             <View style={S.form.divider} />
 
             <View style={S.form.btnRow}>
-              <Pressable style={({ pressed }) => [S.form.btnCancel, pressed && { opacity: 0.85 }]} onPress={onClose}>
+              <Pressable style={({ pressed }) => [S.form.btnCancel, pressed && { opacity: 0.85 }]} onPress={onClose} disabled={isSaving}>
                 <Text style={S.form.btnCancelText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
                   S.form.btnSave,
-                  !isValid && S.form.btnSaveDisabled,
-                  isValid && pressed && { opacity: 0.88 },
+                  (!isValid || isSaving) && S.form.btnSaveDisabled,
+                  isValid && pressed && !isSaving && { opacity: 0.88 },
                 ]}
                 onPress={handleSave}
-                disabled={!isValid}
+                disabled={!isValid || isSaving}
               >
-                <Text style={S.form.btnSaveText}>
-                  {editId ? 'Save Changes' : 'Add Candidate'}
-                </Text>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={S.form.btnSaveText}>
+                    {editId ? 'Save Changes' : 'Add Candidate'}
+                  </Text>
+                )}
               </Pressable>
             </View>
 
@@ -644,15 +647,87 @@ const PositionHeader: React.FC<{
 function AdminCandidatesScreen() {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
+  const queryClient = useQueryClient();
 
-  const {
-    candidates,
-    disabledPositions,
-    addCandidate,
-    updateCandidate,
-    deleteCandidate,
-    togglePositionDisabled,
-  } = useCandidateStore();
+  const disabledPositions = useCandidateStore(state => state.disabledPositions);
+  const togglePositionDisabled = useCandidateStore(state => state.togglePositionDisabled);
+
+  // ─── Supabase Queries & Mutations ──────────────────────────────────────────
+
+  const { data: dbPositions = [] } = useQuery({
+    queryKey: ['positions'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('Positions').select('*');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // ✅ Fix 1: Unified Query Key
+  // Using ['candidates', 'admin'] ensures it gets tracked uniquely but can be wiped out using fuzzy matching on ['candidates']
+  const { data: dbCandidates = [], isLoading } = useQuery({
+    queryKey: ['candidates', 'admin'], 
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Candidates')
+        .select('*, Positions(position_name)');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const deleteMutation = useDeleteCandidate();
+
+  const addMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const { data, error } = await supabase.from('Candidates').insert([payload]).select();
+      if (error) throw error;
+      return data;
+    },
+    // Invalidating base ['candidates'] catches both Student view and Admin view cache
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['candidates'] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string, payload: any }) => {
+      const { data, error } = await supabase.from('Candidates').update(payload).eq('id', id).select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['candidates'] }),
+  });
+
+  // Map database entries to match the Candidate store type expected by the UI
+  const candidates: Candidate[] = useMemo(() => {
+    return dbCandidates.map((c: any) => {
+      let dept = 'Executive Council';
+      let posName = c.Positions?.position_name || '';
+
+      // Infer department directly from position_name (e.g. 'CBEAM Governor' -> dept: 'CBEAM', posName: 'Governor')
+      for (const d of DEPARTMENTS) {
+        if (d !== 'Executive Council' && posName.startsWith(d)) {
+          dept = d;
+          posName = posName.replace(`${d} `, '').replace(`${d}-`, '');
+          break;
+        }
+      }
+
+      return {
+        id: c.id,
+        name: c.name,
+        partylist: c.partylist || '',
+        position_id: c.position_id,
+        position_name: posName as Position,
+        department: dept as Department,
+        photo_url: c.photo_url,
+        email: c.email,
+        credentials: c.credentials,
+        platform: c.platform,
+      };
+    });
+  }, [dbCandidates]);
+
+  // ─── State ─────────────────────────────────────────────────────────────
 
   const [activeFilter,    setActiveFilter]    = useState<string>('all');
   const [formVisible,     setFormVisible]     = useState(false);
@@ -670,7 +745,10 @@ function AdminCandidatesScreen() {
         dept === 'Executive Council' ? EXECUTIVE_POSITIONS : DEPARTMENT_POSITIONS;
 
       const positionGroups = positions.map(posName => {
-        const posId = resolvePositionId(dept, posName);
+        const expectedPosName = dept === 'Executive Council' ? posName : `${dept} ${posName}`;
+        // Find the UUID from dbPositions, fallback to a dummy string if not created yet
+        const posId = dbPositions.find(p => p.position_name === expectedPosName)?.id || `missing-${expectedPosName}`;
+
         const items = candidates.filter(
           c => c.department === dept && c.position_name === posName,
         );
@@ -679,7 +757,7 @@ function AdminCandidatesScreen() {
 
       return { department: dept, positionGroups };
     });
-  }, [candidates, activeFilter]);
+  }, [candidates, activeFilter, dbPositions]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -712,39 +790,62 @@ function AdminCandidatesScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete', style: 'destructive',
-          onPress: () => deleteCandidate(c.id),
+          onPress: () => deleteMutation.mutate(c.id, {
+            onError: (err) => Alert.alert('Deletion Failed', err.message),
+          }),
         },
       ],
     );
-  }, [deleteCandidate]);
+  }, [deleteMutation]);
 
-  const handleSave = useCallback((id: string | null, data: FormState) => {
+  // ✅ Fix 2: Wrap handleSave logic inside a try/catch & await the mutation explicitly 
+  const handleSave = useCallback(async (id: string | null, data: FormState) => {
     if (!data.department || !data.position) return;
 
-    const dept        = data.department as Department;
-    const pos         = data.position   as Position;
-    const position_id = resolvePositionId(dept, pos);
+    try {
+      // Supabase stringifies them as either "Executive President" or "CBEAM Governor"
+      const expectedPosName = data.department === 'Executive Council'
+        ? data.position
+        : `${data.department} ${data.position}`;
 
-    const payload = {
-      name:          data.name.trim(),
-      partylist:     data.partylist.trim(),
-      department:    dept,
-      position_id,
-      position_name: pos,
-      email:         data.email.trim()       || null,
-      credentials:   data.credentials.trim() || null,
-      platform:      data.platform.trim()    || null,
-      photo_url:     data.photo_uri,
-    };
+      let posId = dbPositions.find(p => p.position_name === expectedPosName)?.id;
 
-    if (id) {
-      updateCandidate(id, payload);
-    } else {
-      addCandidate({ ...payload, id: generateCandidateId() });
+      if (!posId) {
+        // Auto-insert missing positions safely to avoid FK failures
+        const { data: newPos, error } = await supabase
+          .from('Positions')
+          .insert([{ position_name: expectedPosName }])
+          .select()
+          .single();
+        
+        if (error) throw new Error(`Failed to create position: ${error.message}`);
+        
+        posId = newPos.id;
+        queryClient.invalidateQueries({ queryKey: ['positions'] });
+      }
+
+      const payload = {
+        name:          data.name.trim(),
+        partylist:     data.partylist.trim() || null,
+        position_id:   posId,
+        email:         data.email.trim()     || null,
+        credentials:   data.credentials.trim() || null,
+        platform:      data.platform.trim()    || null,
+        photo_url:     data.photo_uri, 
+      };
+
+      if (id) {
+        await updateMutation.mutateAsync({ id, payload });
+      } else {
+        await addMutation.mutateAsync(payload);
+      }
+
+      // ✅ Fix 3: Only close the modal if no errors were thrown above!
+      setFormVisible(false);
+    } catch (err: any) {
+      Alert.alert('Save Failed', err.message || 'An unexpected error occurred.');
     }
-
-    setFormVisible(false);
-  }, [addCandidate, updateCandidate]);
+  }, [dbPositions, addMutation, updateMutation, queryClient]);
 
   const renderCards = useCallback((list: Candidate[]) =>
     list.map(c => (
@@ -777,119 +878,125 @@ function AdminCandidatesScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={S.screen.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Department filter tabs */}
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={C.green} />
+        </View>
+      ) : (
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={S.filter.scrollRow}
+          contentContainerStyle={S.screen.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={S.filter.innerRow}>
-            <Pressable
-              style={({ pressed }) => [
-                S.filter.tab,
-                activeFilter === 'all' && S.filter.tabActive,
-                pressed && { opacity: 0.85 },
-              ]}
-              onPress={() => setActiveFilter('all')}
-            >
-              <Text style={[S.filter.tabText, activeFilter === 'all' && S.filter.tabTextActive]}>
-                All
-              </Text>
-            </Pressable>
-            {DEPARTMENTS.map(d => (
+          {/* Department filter tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={S.filter.scrollRow}
+          >
+            <View style={S.filter.innerRow}>
               <Pressable
-                key={d}
                 style={({ pressed }) => [
                   S.filter.tab,
-                  activeFilter === d && S.filter.tabActive,
+                  activeFilter === 'all' && S.filter.tabActive,
                   pressed && { opacity: 0.85 },
                 ]}
-                onPress={() => setActiveFilter(d)}
+                onPress={() => setActiveFilter('all')}
               >
-                <Text style={[S.filter.tabText, activeFilter === d && S.filter.tabTextActive]}>
-                  {d}
+                <Text style={[S.filter.tabText, activeFilter === 'all' && S.filter.tabTextActive]}>
+                  All
                 </Text>
               </Pressable>
-            ))}
-          </View>
+              {DEPARTMENTS.map(d => (
+                <Pressable
+                  key={d}
+                  style={({ pressed }) => [
+                    S.filter.tab,
+                    activeFilter === d && S.filter.tabActive,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={() => setActiveFilter(d)}
+                >
+                  <Text style={[S.filter.tabText, activeFilter === d && S.filter.tabTextActive]}>
+                    {d}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Grouped candidate list */}
+          {grouped.map(({ department, positionGroups }) => (
+            <View key={department}>
+
+              {/* Department section header (only in "All" view) */}
+              {activeFilter === 'all' && (
+                <Text style={[S.screen.sectionLabel, { marginTop: SPACE.lg }]}>
+                  {department}
+                </Text>
+              )}
+
+              {positionGroups.map(({ positionName, positionId, items }) => {
+                const isDisabled = disabledPositions.has(positionId);
+                return (
+                  <View key={positionId}>
+
+                    {/* Position sub-header + toggle */}
+                    <PositionHeader
+                      positionName={positionName}
+                      positionId={positionId}
+                      isDisabled={isDisabled}
+                      onToggle={() => togglePositionDisabled(positionId)}
+                    />
+
+                    {/* Disabled banner */}
+                    {isDisabled && (
+                      <View style={{
+                        backgroundColor: C.redGlow,
+                        borderRadius:    RADIUS.md,
+                        borderWidth:     1,
+                        borderColor:     'rgba(239,68,68,0.35)',
+                        padding:         SPACE.sm,
+                        marginBottom:    SPACE.sm,
+                      }}>
+                        <Text style={{
+                          fontSize:  FONT.xs,
+                          color:     C.red,
+                          textAlign: 'center',
+                        }}>
+                          This position is disabled and excluded from the ballot.
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Candidates or empty placeholder */}
+                    {items.length === 0 ? (
+                      <View style={{
+                        backgroundColor: C.surface,
+                        borderRadius:    RADIUS.md,
+                        borderWidth:     1,
+                        borderColor:     C.border,
+                        padding:         SPACE.base,
+                        marginBottom:    SPACE.sm,
+                      }}>
+                        <Text style={{
+                          fontSize:  FONT.sm,
+                          color:     C.textMuted,
+                          textAlign: 'center',
+                          fontStyle: 'italic',
+                        }}>
+                          No candidates for this position.
+                        </Text>
+                      </View>
+                    ) : renderCards(items)}
+
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+
         </ScrollView>
-
-        {/* Grouped candidate list */}
-        {grouped.map(({ department, positionGroups }) => (
-          <View key={department}>
-
-            {/* Department section header (only in "All" view) */}
-            {activeFilter === 'all' && (
-              <Text style={[S.screen.sectionLabel, { marginTop: SPACE.lg }]}>
-                {department}
-              </Text>
-            )}
-
-            {positionGroups.map(({ positionName, positionId, items }) => {
-              const isDisabled = disabledPositions.has(positionId);
-              return (
-                <View key={positionId}>
-
-                  {/* Position sub-header + toggle */}
-                  <PositionHeader
-                    positionName={positionName}
-                    positionId={positionId}
-                    isDisabled={isDisabled}
-                    onToggle={() => togglePositionDisabled(positionId)}
-                  />
-
-                  {/* Disabled banner */}
-                  {isDisabled && (
-                    <View style={{
-                      backgroundColor: C.redGlow,
-                      borderRadius:    RADIUS.md,
-                      borderWidth:     1,
-                      borderColor:     'rgba(239,68,68,0.35)',
-                      padding:         SPACE.sm,
-                      marginBottom:    SPACE.sm,
-                    }}>
-                      <Text style={{
-                        fontSize:  FONT.xs,
-                        color:     C.red,
-                        textAlign: 'center',
-                      }}>
-                        This position is disabled and excluded from the ballot.
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Candidates or empty placeholder */}
-                  {items.length === 0 ? (
-                    <View style={{
-                      backgroundColor: C.surface,
-                      borderRadius:    RADIUS.md,
-                      borderWidth:     1,
-                      borderColor:     C.border,
-                      padding:         SPACE.base,
-                      marginBottom:    SPACE.sm,
-                    }}>
-                      <Text style={{
-                        fontSize:  FONT.sm,
-                        color:     C.textMuted,
-                        textAlign: 'center',
-                        fontStyle: 'italic',
-                      }}>
-                        No candidates for this position.
-                      </Text>
-                    </View>
-                  ) : renderCards(items)}
-
-                </View>
-              );
-            })}
-          </View>
-        ))}
-
-      </ScrollView>
+      )}
 
       {/* Add / Edit form sheet */}
       <CandidateFormSheet

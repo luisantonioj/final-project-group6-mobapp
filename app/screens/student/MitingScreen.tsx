@@ -5,13 +5,13 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, Pressable, FlatList,
   TextInput, StyleSheet, ActivityIndicator,
-  Animated, StatusBar, Platform,
+  Animated, StatusBar, Platform, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { Ionicons }         from '@expo/vector-icons';
-import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../../hooks/useMiting';
+import { useMitingQuestions, useStudentUpvotes, useUpvoteQuestion, useRemoveUpvote, useSubmitQuestion } from '../../hooks/useMiting';
 import { useAuthStore }     from '../../stores/authStore';
 import { supabase }         from '../../utils/supabase';
 import { notifyAdminAlert } from '../../notifications/notificationService';
@@ -32,10 +32,13 @@ function QuestionCard({ q, index, totalCount, hasUpvoted, onUpvote, userId, C, s
   s: ReturnType<typeof makeStyles>;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const isTop = index === 0 && totalCount > 1;
+  const isTop = index === 0 && totalCount > 1 && q.is_approved;
   const isOwn = q.student_id === userId;
 
   const handlePress = () => {
+    // Prevent upvoting pending questions
+    if (!q.is_approved) return;
+    
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 1.35, duration: 100, useNativeDriver: true }),
       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }),
@@ -49,9 +52,11 @@ function QuestionCard({ q, index, totalCount, hasUpvoted, onUpvote, userId, C, s
         style={({ pressed }) => [
           s.upvoteBtn,
           hasUpvoted && s.upvoteBtnActive,
-          pressed && { opacity: 0.7 },
+          !q.is_approved && { opacity: 0.5 },
+          q.is_approved && pressed && { opacity: 0.7 },
         ]}
         onPress={handlePress}
+        disabled={!q.is_approved}
       >
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <Ionicons
@@ -64,7 +69,10 @@ function QuestionCard({ q, index, totalCount, hasUpvoted, onUpvote, userId, C, s
 
       <View style={{ flex: 1 }}>
         {isTop && <View style={s.topBadge}><Text style={s.topBadgeText}>🔥 Top Question</Text></View>}
+        {!q.is_approved && <View style={s.pendingBadge}><Text style={s.pendingBadgeText}>⏳ Pending Approval</Text></View>}
+        
         <Text style={s.questionText}>{q.question_text}</Text>
+        
         <View style={s.questionFooter}>
           <Text style={s.questionMeta}>
             {new Date(q.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
@@ -86,18 +94,28 @@ export function MitingScreen() {
   const { userProfile } = useAuthStore();
   const userId = userProfile?.id ?? '';
 
-  const { data: questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
-  const { mutateAsync: upvote }       = useUpvoteQuestion();
-  const { mutateAsync: removeUpvote } = useRemoveUpvote();
+  // Pass userId to fetch their specific pending questions
+  const { data: questions, isLoading, refetch } = useMitingQuestions(userId) as { data: Question[] | undefined, isLoading: boolean, refetch: () => Promise<any> };
+  const { data: remoteUpvotes } = useStudentUpvotes(userId);
+  
+  const { mutateAsync: upvote }         = useUpvoteQuestion();
+  const { mutateAsync: removeUpvote }   = useRemoveUpvote();
+  const { mutateAsync: submitQuestion } = useSubmitQuestion();
 
   const [draft,          setDraft]        = useState('');
   const [submitting,     setSubmitting]   = useState(false);
   const [upvotedIds,     setUpvotedIds]   = useState<Set<string>>(new Set());
   const [isMitingActive, setMitingActive] = useState(false);
   const [showToast,      setShowToast]    = useState(false);
+  const [isRefreshing,   setIsRefreshing] = useState(false);
 
   const inputRef  = useRef<TextInput>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Sync historical upvotes from the DB on load
+  useEffect(() => {
+    if (remoteUpvotes) setUpvotedIds(new Set(remoteUpvotes));
+  }, [remoteUpvotes]);
 
   useEffect(() => {
     Animated.loop(
@@ -128,25 +146,41 @@ export function MitingScreen() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
+
   const handleSubmit = async () => {
     const text = draft.trim();
     if (!text || !userId) return;
     setSubmitting(true);
     try {
-      await supabase.from('MitingQuestions').insert({ student_id: userId, question_text: text });
-      setDraft(''); inputRef.current?.blur();
-      setShowToast(true); setTimeout(() => setShowToast(false), 3000);
-    } finally { setSubmitting(false); }
+      await submitQuestion({ questionText: text, studentId: userId });
+      setDraft(''); 
+      inputRef.current?.blur();
+      setShowToast(true); 
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (error: any) {
+      Alert.alert('Submission Failed', error?.message || 'Could not submit your question. Please try again.');
+    } finally { 
+      setSubmitting(false); 
+    }
   };
 
   const handleUpvote = async (questionId: string) => {
     if (!userId) return;
     const hasUpvoted = upvotedIds.has(questionId);
+    
+    // Optimistic UI update
     setUpvotedIds(prev => { const n = new Set(prev); hasUpvoted ? n.delete(questionId) : n.add(questionId); return n; });
+    
     try {
       if (hasUpvoted) await removeUpvote({ questionId, studentId: userId });
       else            await upvote({ questionId, studentId: userId });
     } catch {
+      // Revert on failure
       setUpvotedIds(prev => { const n = new Set(prev); hasUpvoted ? n.add(questionId) : n.delete(questionId); return n; });
     }
   };
@@ -187,7 +221,7 @@ export function MitingScreen() {
         </View>
 
         {/* ── Questions list ── */}
-        {isLoading ? (
+        {isLoading && !isRefreshing ? (
           <View style={s.center}><ActivityIndicator size="large" color={C.greenBright} /></View>
         ) : (
           <FlatList
@@ -197,6 +231,7 @@ export function MitingScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={C.green} colors={[C.green]} />}
             ListEmptyComponent={
               <View style={s.emptyState}>
                 <Ionicons name="chatbubble-ellipses-outline" size={36} color={C.textMuted} />
@@ -291,6 +326,9 @@ function makeStyles(C: ThemeColors) {
 
     topBadge:     { alignSelf: 'flex-start', backgroundColor: C.greenLight, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 6 },
     topBadgeText: { fontSize: 11, fontWeight: '700', color: C.greenBright },
+    
+    pendingBadge:     { alignSelf: 'flex-start', backgroundColor: C.amberGlow, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 6, borderWidth: 1, borderColor: C.amber + '55' },
+    pendingBadgeText: { fontSize: 11, fontWeight: '700', color: C.amber },
 
     questionText:   { fontSize: 14, color: C.text, lineHeight: 21, marginBottom: 6 },
     questionFooter: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -2,27 +2,9 @@
  * components/CandidateModal.tsx
  *
  * Candidate profile bottom sheet used in both student and admin contexts.
- *
- * STUDENT (VoteScreen) — onSelect provided, admin props omitted:
- *   <CandidateModal
- *     candidate={viewed}
- *     visible={!!viewed}
- *     onClose={() => setViewed(null)}
- *     onSelect={(c) => { selectCandidate(c.position_id, c.id); setViewed(null); }}
- *     alreadyVoted={!!selectedCandidates[viewed?.position_id ?? '']}
- *   />
- *
- * ADMIN (AdminCandidatesScreen) — onSelect omitted, admin props provided:
- *   <CandidateModal
- *     candidate={viewed}
- *     visible={!!viewed}
- *     onClose={() => setViewed(null)}
- *     onAdminEdit={(c) => { setViewed(null); openEdit(c); }}
- *     onAdminDelete={(c) => { setViewed(null); confirmDelete(c); }}
- *   />
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
   View,
@@ -34,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors, ThemeColors } from '../theme';
 
 export interface CandidateRow {
   id:          string;
@@ -59,26 +42,6 @@ interface Props {
   onAdminDelete?: (c: CandidateRow) => void;
 }
 
-const C = {
-  bg:          '#0A0F0A',
-  surface:     '#111811',
-  surface2:    '#162016',
-  border:      '#1E2E1E',
-  borderBright:'#2A4A2A',
-  green:       '#22C55E',
-  greenDim:    '#0F6E56',
-  greenFaint:  '#14532D',
-  text:        '#F0FFF0',
-  textSub:     '#A3C5A3',
-  textMuted:   '#6B8C6B',
-  red:         '#EF4444',
-  redFaint:    'rgba(239,68,68,0.12)',
-  amber:       '#F59E0B',
-  amberFaint:  'rgba(245,158,11,0.12)',
-  amberBorder: 'rgba(245,158,11,0.35)',
-  redBorder:   'rgba(239,68,68,0.35)',
-};
-
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -97,6 +60,9 @@ export function CandidateModal({
   onAdminEdit,
   onAdminDelete,
 }: Props) {
+  const C = useThemeColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+
   if (!candidate) return null;
 
   const isAdminMode  = !onSelect && (!!onAdminEdit || !!onAdminDelete);
@@ -125,7 +91,7 @@ export function CandidateModal({
           showsVerticalScrollIndicator={false}
         >
           {/* Photo / Avatar */}
-          <View style={s.photoWrap}>
+          <View style={s.photoOuterRing}>
             {candidate.photo_url ? (
               <Image source={{ uri: candidate.photo_url }} style={s.photo} />
             ) : (
@@ -154,8 +120,13 @@ export function CandidateModal({
           ) : null}
 
           {/* Credentials */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Credentials</Text>
+          <View style={s.sectionCard}>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionIconWrap}>
+                <Ionicons name="ribbon-outline" size={16} color={C.green} />
+              </View>
+              <Text style={s.sectionTitle}>Credentials</Text>
+            </View>
             {candidate.credentials ? (
               <Text style={s.sectionBody}>{candidate.credentials}</Text>
             ) : (
@@ -164,8 +135,13 @@ export function CandidateModal({
           </View>
 
           {/* Platform */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Platform</Text>
+          <View style={s.sectionCard}>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionIconWrap}>
+                <Ionicons name="megaphone-outline" size={16} color={C.green} />
+              </View>
+              <Text style={s.sectionTitle}>Platform & Advocacies</Text>
+            </View>
             {candidate.platform ? (
               <Text style={s.sectionBody}>{candidate.platform}</Text>
             ) : (
@@ -173,39 +149,39 @@ export function CandidateModal({
             )}
           </View>
 
-          <View style={{ height: 140 }} />
+          <View style={{ height: 160 }} />
         </ScrollView>
 
         {/* Fixed bottom action bar */}
         <View style={s.actions}>
 
-          {/* STUDENT MODE */}
+          {/* STUDENT MODE (Enhanced UI) */}
           {!isAdminMode && onSelect ? (
-            <>
+            <View style={s.studentActions}>
               <Pressable
                 style={({ pressed }) => [
                   s.primaryBtn,
                   alreadyVoted && s.primaryBtnSwap,
-                  pressed && { opacity: 0.88 },
+                  pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
                 ]}
                 onPress={() => onSelect(candidate)}
               >
                 <Ionicons
-                  name={alreadyVoted ? 'swap-horizontal-outline' : 'checkmark-circle-outline'}
-                  size={18}
+                  name={alreadyVoted ? 'swap-horizontal' : 'checkmark-circle'}
+                  size={20}
                   color="#fff"
                 />
                 <Text style={s.primaryBtnText}>
-                  {alreadyVoted ? 'Change Selection' : 'Select This Candidate'}
+                  {alreadyVoted ? 'Change to this Candidate' : 'Select This Candidate'}
                 </Text>
               </Pressable>
               <Pressable style={({ pressed }) => [s.ghostBtn, pressed && { opacity: 0.75 }]} onPress={onClose}>
                 <Text style={s.ghostBtnText}>Cancel</Text>
               </Pressable>
-            </>
+            </View>
           ) : null}
 
-          {/* ADMIN MODE */}
+          {/* ADMIN MODE (Untouched Legacy Styles) */}
           {isAdminMode ? (
             <>
               <View style={s.adminRow}>
@@ -240,151 +216,201 @@ export function CandidateModal({
   );
 }
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+function makeStyles(C: ThemeColors) {
+  // Preserving legacy hardcoded tints for the admin row buttons to ensure they remain untouched
+  const isDark = C.text === '#F0FFF0' || C.text === '#FFFFFF';
+  const borderBright = isDark ? 'rgba(34,197,94,0.3)' : 'rgba(34,197,94,0.15)';
+  const amberFaint = 'rgba(245,158,11,0.12)';
+  const amberBorder = 'rgba(245,158,11,0.35)';
+  const redFaint = 'rgba(239,68,68,0.12)';
+  const redBorder = 'rgba(239,68,68,0.35)';
 
-  header: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    paddingHorizontal: 20,
-    paddingVertical:   14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  headerLabel: {
-    fontSize:      13,
-    fontWeight:    '700',
-    color:         C.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  closeBtn: {
-    padding:         6,
-    backgroundColor: C.surface2,
-    borderRadius:    20,
-  },
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.bg },
 
-  content: {
-    alignItems:        'center',
-    paddingHorizontal: 24,
-    paddingTop:        28,
-  },
-  photoWrap: { marginBottom: 16 },
-  photo: {
-    width:        110,
-    height:       110,
-    borderRadius: 55,
-    borderWidth:  2,
-    borderColor:  C.green,
-  },
-  avatarFallback: {
-    width:           110,
-    height:          110,
-    borderRadius:    55,
-    backgroundColor: C.surface2,
-    borderWidth:     2,
-    borderColor:     C.borderBright,
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-  avatarText: { fontSize: 36, fontWeight: '800', color: C.green },
+    header: {
+      flexDirection:     'row',
+      alignItems:        'center',
+      justifyContent:    'space-between',
+      paddingHorizontal: 20,
+      paddingVertical:   16,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+      backgroundColor:   C.surface,
+    },
+    headerLabel: {
+      fontSize:      12,
+      fontWeight:    '700',
+      color:         C.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 1.2,
+    },
+    closeBtn: {
+      padding:         6,
+      backgroundColor: C.surface2,
+      borderRadius:    20,
+    },
 
-  name: {
-    fontSize:     22,
-    fontWeight:   '800',
-    color:        C.text,
-    textAlign:    'center',
-    marginBottom: 8,
-  },
-  partyBadge: {
-    backgroundColor:   C.surface2,
-    borderRadius:      20,
-    borderWidth:       1,
-    borderColor:       C.borderBright,
-    paddingHorizontal: 14,
-    paddingVertical:   5,
-    marginBottom:      12,
-  },
-  partyText: {
-    fontSize:      12,
-    fontWeight:    '700',
-    color:         C.textSub,
-    letterSpacing: 0.5,
-  },
-  emailRow: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    gap:               5,
-    backgroundColor:   C.surface2,
-    borderRadius:      20,
-    borderWidth:       1,
-    borderColor:       C.border,
-    paddingHorizontal: 12,
-    paddingVertical:   4,
-    marginBottom:      16,
-  },
-  emailText: { fontSize: 12, color: C.textMuted, fontWeight: '600' },
+    content: {
+      alignItems:        'center',
+      paddingHorizontal: 20,
+      paddingTop:        32,
+    },
 
-  section: { width: '100%', marginBottom: 20 },
-  sectionTitle: {
-    fontSize:      11,
-    fontWeight:    '700',
-    color:         C.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom:  8,
-  },
-  sectionBody:  { fontSize: 14, color: C.textSub, lineHeight: 22 },
-  sectionEmpty: { fontSize: 14, color: C.textMuted, fontStyle: 'italic', lineHeight: 22 },
+    // Enhanced Student Avatar 
+    photoOuterRing: {
+      padding: 4,
+      borderRadius: 64,
+      borderWidth: 1,
+      borderColor: C.border,
+      backgroundColor: C.surface,
+      marginBottom: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    photo: {
+      width:        112,
+      height:       112,
+      borderRadius: 56,
+    },
+    avatarFallback: {
+      width:           112,
+      height:          112,
+      borderRadius:    56,
+      backgroundColor: C.surface2,
+      alignItems:      'center',
+      justifyContent:  'center',
+    },
+    avatarText: { fontSize: 36, fontWeight: '800', color: C.green },
 
-  actions: {
-    position:          'absolute',
-    bottom:            0,
-    left:              0,
-    right:             0,
-    backgroundColor:   C.bg,
-    paddingHorizontal: 20,
-    paddingBottom:     36,
-    paddingTop:        12,
-    borderTopWidth:    1,
-    borderTopColor:    C.border,
-    gap:               10,
-  },
+    name: {
+      fontSize:     24,
+      fontWeight:   '800',
+      color:        C.text,
+      textAlign:    'center',
+      marginBottom: 10,
+    },
+    partyBadge: {
+      backgroundColor:   C.surface2,
+      borderRadius:      20,
+      borderWidth:       1,
+      borderColor:       C.border,
+      paddingHorizontal: 16,
+      paddingVertical:   6,
+      marginBottom:      20,
+    },
+    partyText: {
+      fontSize:      12,
+      fontWeight:    '700',
+      color:         C.textSub,
+      letterSpacing: 0.5,
+    },
+    emailRow: {
+      flexDirection:     'row',
+      alignItems:        'center',
+      gap:               6,
+      backgroundColor:   C.surface2,
+      borderRadius:      20,
+      borderWidth:       1,
+      borderColor:       C.border,
+      paddingHorizontal: 12,
+      paddingVertical:   6,
+      marginBottom:      20,
+    },
+    emailText: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
 
-  primaryBtn: {
-    backgroundColor: C.greenDim,
-    borderRadius:    13,
-    paddingVertical: 14,
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'center',
-    gap:             8,
-  },
-  primaryBtnSwap: { backgroundColor: '#7C3AED' },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    // Enhanced Student Content Cards
+    sectionCard: {
+      width: '100%',
+      backgroundColor: C.surface2,
+      borderRadius: 16,
+      padding: 18,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+    },
+    sectionIconWrap: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(34,197,94,0.15)' : 'rgba(34,197,94,0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionTitle: {
+      fontSize:      13,
+      fontWeight:    '700',
+      color:         C.text,
+    },
+    sectionBody:  { fontSize: 14, color: C.textSub, lineHeight: 22 },
+    sectionEmpty: { fontSize: 14, color: C.textMuted, fontStyle: 'italic', lineHeight: 22 },
 
-  adminRow: { flexDirection: 'row', gap: 10 },
-  adminBtn: {
-    flex:            1,
-    borderRadius:    13,
-    paddingVertical: 13,
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'center',
-    gap:             6,
-    borderWidth:     1,
-  },
-  editBtn:      { backgroundColor: C.amberFaint, borderColor: C.amberBorder },
-  deleteBtn:    { backgroundColor: C.redFaint,   borderColor: C.redBorder   },
-  adminBtnText: { fontSize: 14, fontWeight: '700' },
+    actions: {
+      position:          'absolute',
+      bottom:            0,
+      left:              0,
+      right:             0,
+      backgroundColor:   C.surface,
+      paddingHorizontal: 20,
+      paddingBottom:     36,
+      paddingTop:        16,
+      borderTopWidth:    1,
+      borderTopColor:    C.border,
+      gap:               12,
+    },
 
-  ghostBtn: {
-    borderWidth:     1,
-    borderColor:     C.border,
-    borderRadius:    13,
-    paddingVertical: 13,
-    alignItems:      'center',
-  },
-  ghostBtnText: { color: C.textMuted, fontSize: 14, fontWeight: '600' },
-});
+    studentActions: { gap: 12 },
+    
+    primaryBtn: {
+      backgroundColor: C.green,
+      borderRadius:    16,
+      paddingVertical: 16,
+      flexDirection:   'row',
+      alignItems:      'center',
+      justifyContent:  'center',
+      gap:             8,
+      shadowColor:     C.green,
+      shadowOffset:    { width: 0, height: 4 },
+      shadowOpacity:   0.25,
+      shadowRadius:    8,
+      elevation:       4,
+    },
+    primaryBtnSwap: { backgroundColor: C.green, shadowColor: C.green },
+    primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+    // Untouched Admin Row Styles
+    adminRow: { flexDirection: 'row', gap: 10 },
+    adminBtn: {
+      flex:            1,
+      borderRadius:    13,
+      paddingVertical: 13,
+      flexDirection:   'row',
+      alignItems:      'center',
+      justifyContent:  'center',
+      gap:             6,
+      borderWidth:     1,
+    },
+    editBtn:      { backgroundColor: amberFaint, borderColor: amberBorder },
+    deleteBtn:    { backgroundColor: redFaint,   borderColor: redBorder   },
+    adminBtnText: { fontSize: 14, fontWeight: '700' },
+
+    ghostBtn: {
+      borderWidth:     1,
+      borderColor:     C.border,
+      borderRadius:    16,
+      paddingVertical: 14,
+      alignItems:      'center',
+      backgroundColor: C.bg,
+    },
+    ghostBtnText: { color: C.textMuted, fontSize: 15, fontWeight: '600' },
+  });
+}
