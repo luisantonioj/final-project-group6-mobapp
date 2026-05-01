@@ -16,6 +16,7 @@ import { useAuthStore }  from '../../stores/authStore';
 import { useGrantAdminRole } from '../../hooks/useAdminRole';
 import { useThemeColors, ThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
+import { useAuth } from '@clerk/clerk-expo';
 
 // =============================================================================
 // ADD ADMIN MODAL
@@ -140,7 +141,8 @@ export function AdminSettingsScreen() {
   const isDark = useThemeStore(s => s.isDark);
   const s      = useMemo(() => makeStyles(C), [C]);
 
-  const { userProfile, session, role, setProfile, setActiveRole, clear } = useAuthStore();
+  const { session, userProfile, role, setProfile, setActiveRole, clear } = useAuthStore();
+  const { signOut } = useAuth();
 
   const [loading,        setLoading]        = useState(!userProfile);
   const [editing,        setEditing]        = useState(false);
@@ -191,7 +193,7 @@ export function AdminSettingsScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: async () => {
           setSignOutBusy(true);
-          await supabase.auth.signOut();
+          await signOut();
           clear();
         },
       },
@@ -266,7 +268,7 @@ export function AdminSettingsScreen() {
           </View>
         )}
 
-        <Text style={s.email}>{userProfile?.email ?? session?.user.email ?? '—'}</Text>
+        <Text style={s.email}>{userProfile?.email ?? '—'}</Text>
 
         {/* ── Admin badge ── */}
         <View style={s.roleBadge}>

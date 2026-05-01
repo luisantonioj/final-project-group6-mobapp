@@ -14,13 +14,15 @@ import { supabase }      from '../../utils/supabase';
 import { useAuthStore }  from '../../stores/authStore';
 import { useThemeColors, ThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
+import { useAuth } from '@clerk/clerk-expo';
 
 export function ProfileScreen() {
   const C      = useThemeColors();
   const isDark = useThemeStore(s => s.isDark);
   const s      = useMemo(() => makeStyles(C), [C]);
 
-  const { userProfile, session, role, setProfile, setActiveRole, clear } = useAuthStore();
+  const { session, userProfile, role, setProfile, setActiveRole, clear } = useAuthStore();
+  const { signOut } = useAuth();
 
   const [loading,     setLoading]     = useState(!userProfile);
   const [editing,     setEditing]     = useState(false);
@@ -59,7 +61,7 @@ export function ProfileScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: async () => {
           setSignOutBusy(true);
-          await supabase.auth.signOut();
+          await signOut();
           clear();
         },
       },
@@ -144,7 +146,7 @@ export function ProfileScreen() {
         )}
 
         {/* ── Email ── */}
-        <Text style={s.email}>{userProfile?.email ?? session?.user.email ?? '—'}</Text>
+        <Text style={s.email}>{userProfile?.email ?? '—'}</Text>
 
         {/* ── Role badge ── */}
         <View style={s.roleBadge}>
