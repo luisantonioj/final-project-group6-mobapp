@@ -450,7 +450,7 @@ export type Database = {
       }
       Votes: {
         Row: {
-          candidate_id: string
+          candidate_id: string | null
           created_at: string | null
           id: string
           is_valid: boolean | null
