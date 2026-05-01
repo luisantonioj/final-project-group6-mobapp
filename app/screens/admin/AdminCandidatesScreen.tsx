@@ -236,11 +236,13 @@ const CandidateFormSheet: React.FC<{
   const [form,          setFormState]    = useState<FormState>(initial);
   const [errors,        setErrors]       = useState<FormErrors>({});
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [isSaving,      setIsSaving]     = useState(false);
 
   useEffect(() => {
     setFormState(initial);
     setErrors({});
     setSaveAttempted(false);
+    setIsSaving(false);
   }, [initial, visible]);
 
   const setField = useCallback((field: keyof FormState, value: string | null) => {
@@ -288,10 +290,16 @@ const CandidateFormSheet: React.FC<{
     }
   }, [setField]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setSaveAttempted(true);
     if (!isValid) return;
-    onSave(editId, form);
+    
+    setIsSaving(true);
+    try {
+      await onSave(editId, form);
+    } finally {
+      setIsSaving(false);
+    }
   }, [isValid, editId, form, onSave]);
 
   return (
@@ -489,21 +497,25 @@ const CandidateFormSheet: React.FC<{
             <View style={S.form.divider} />
 
             <View style={S.form.btnRow}>
-              <Pressable style={({ pressed }) => [S.form.btnCancel, pressed && { opacity: 0.85 }]} onPress={onClose}>
+              <Pressable style={({ pressed }) => [S.form.btnCancel, pressed && { opacity: 0.85 }]} onPress={onClose} disabled={isSaving}>
                 <Text style={S.form.btnCancelText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
                   S.form.btnSave,
-                  !isValid && S.form.btnSaveDisabled,
-                  isValid && pressed && { opacity: 0.88 },
+                  (!isValid || isSaving) && S.form.btnSaveDisabled,
+                  isValid && pressed && !isSaving && { opacity: 0.88 },
                 ]}
                 onPress={handleSave}
-                disabled={!isValid}
+                disabled={!isValid || isSaving}
               >
-                <Text style={S.form.btnSaveText}>
-                  {editId ? 'Save Changes' : 'Add Candidate'}
-                </Text>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={S.form.btnSaveText}>
+                    {editId ? 'Save Changes' : 'Add Candidate'}
+                  </Text>
+                )}
               </Pressable>
             </View>
 
@@ -651,8 +663,10 @@ function AdminCandidatesScreen() {
     }
   });
 
+  // ✅ Fix 1: Unified Query Key
+  // Using ['candidates', 'admin'] ensures it gets tracked uniquely but can be wiped out using fuzzy matching on ['candidates']
   const { data: dbCandidates = [], isLoading } = useQuery({
-    queryKey: ['admin_candidates'],
+    queryKey: ['candidates', 'admin'], 
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Candidates')
@@ -670,7 +684,8 @@ function AdminCandidatesScreen() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin_candidates'] })
+    // Invalidating base ['candidates'] catches both Student view and Admin view cache
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['candidates'] }),
   });
 
   const updateMutation = useMutation({
@@ -679,7 +694,7 @@ function AdminCandidatesScreen() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin_candidates'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['candidates'] }),
   });
 
   // Map database entries to match the Candidate store type expected by the UI
@@ -775,58 +790,61 @@ function AdminCandidatesScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete', style: 'destructive',
-          onPress: () => deleteMutation.mutate(c.id),
+          onPress: () => deleteMutation.mutate(c.id, {
+            onError: (err) => Alert.alert('Deletion Failed', err.message),
+          }),
         },
       ],
     );
   }, [deleteMutation]);
 
+  // ✅ Fix 2: Wrap handleSave logic inside a try/catch & await the mutation explicitly 
   const handleSave = useCallback(async (id: string | null, data: FormState) => {
     if (!data.department || !data.position) return;
 
-    // Supabase stringifies them as either "Executive President" or "CBEAM Governor"
-    const expectedPosName = data.department === 'Executive Council'
-      ? data.position
-      : `${data.department} ${data.position}`;
+    try {
+      // Supabase stringifies them as either "Executive President" or "CBEAM Governor"
+      const expectedPosName = data.department === 'Executive Council'
+        ? data.position
+        : `${data.department} ${data.position}`;
 
-    let posId = dbPositions.find(p => p.position_name === expectedPosName)?.id;
+      let posId = dbPositions.find(p => p.position_name === expectedPosName)?.id;
 
-    if (!posId) {
-      // Auto-insert missing positions safely to avoid FK failures
-      const { data: newPos, error } = await supabase
-        .from('Positions')
-        .insert([{ position_name: expectedPosName }])
-        .select()
-        .single();
-      
-      if (error) {
-        Alert.alert('Error', 'Failed to create position in database.');
-        return;
+      if (!posId) {
+        // Auto-insert missing positions safely to avoid FK failures
+        const { data: newPos, error } = await supabase
+          .from('Positions')
+          .insert([{ position_name: expectedPosName }])
+          .select()
+          .single();
+        
+        if (error) throw new Error(`Failed to create position: ${error.message}`);
+        
+        posId = newPos.id;
+        queryClient.invalidateQueries({ queryKey: ['positions'] });
       }
-      posId = newPos.id;
-      queryClient.invalidateQueries({ queryKey: ['positions'] });
+
+      const payload = {
+        name:          data.name.trim(),
+        partylist:     data.partylist.trim() || null,
+        position_id:   posId,
+        email:         data.email.trim()     || null,
+        credentials:   data.credentials.trim() || null,
+        platform:      data.platform.trim()    || null,
+        photo_url:     data.photo_uri, 
+      };
+
+      if (id) {
+        await updateMutation.mutateAsync({ id, payload });
+      } else {
+        await addMutation.mutateAsync(payload);
+      }
+
+      // ✅ Fix 3: Only close the modal if no errors were thrown above!
+      setFormVisible(false);
+    } catch (err: any) {
+      Alert.alert('Save Failed', err.message || 'An unexpected error occurred.');
     }
-
-    // Ideally, local URIs would upload to Supabase Storage Bucket first:
-    // Ex: const finalPhotoUrl = await uploadToStorage(data.photo_uri);
-    // Preserving logic to keep it as URI string if passed in directly
-    const payload = {
-      name:          data.name.trim(),
-      partylist:     data.partylist.trim() || null,
-      position_id:   posId,
-      email:         data.email.trim()     || null,
-      credentials:   data.credentials.trim() || null,
-      platform:      data.platform.trim()    || null,
-      photo_url:     data.photo_uri, 
-    };
-
-    if (id) {
-      updateMutation.mutate({ id, payload });
-    } else {
-      addMutation.mutate(payload);
-    }
-
-    setFormVisible(false);
   }, [dbPositions, addMutation, updateMutation, queryClient]);
 
   const renderCards = useCallback((list: Candidate[]) =>
