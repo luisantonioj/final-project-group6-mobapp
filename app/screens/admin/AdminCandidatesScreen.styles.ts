@@ -1,3 +1,4 @@
+// app/screens/admin/AdminCandidatesScreen.styles.ts
 import { StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../theme';
 
@@ -98,6 +99,89 @@ export function makeStyles(C: ThemeColors) {
     },
     tabTextActive: {
       color: C.green,
+    },
+  });
+
+  // ─── NEW: Extracted College Section Styles ─────────────────────────────
+  const college = StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: C.surface,
+      borderLeftWidth: 4,
+      padding: SPACE.md,
+      marginTop: SPACE.lg,
+      marginBottom: SPACE.sm,
+      borderRadius: RADIUS.md,
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+    },
+    title: {
+      fontSize: FONT.lg,
+      fontWeight: '800',
+      color: C.text,
+    },
+    subtitle: {
+      fontSize: FONT.sm,
+      color: C.textMuted,
+      marginTop: 2,
+    },
+    chip: {
+      paddingHorizontal: SPACE.sm,
+      paddingVertical: 4,
+      borderRadius: RADIUS.pill,
+    },
+    chipText: {
+      fontSize: FONT.xs,
+      fontWeight: '700',
+    },
+  });
+
+  // ─── NEW: Extracted Position Header Styles ─────────────────────────────
+  const positionHeader = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: SPACE.sm,
+      marginBottom: SPACE.xs,
+      backgroundColor: C.surface,
+      padding: SPACE.sm,
+      borderRadius: RADIUS.md,
+      borderLeftWidth: 4,
+      elevation: 1,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 1.5,
+    },
+    leftContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    icon: {
+      fontSize: FONT.lg,
+      marginRight: SPACE.sm,
+    },
+    title: {
+      fontSize: FONT.sm,
+      fontWeight: '700',
+      flex: 1,
+    },
+    toggleBtn: {
+      paddingHorizontal: SPACE.sm,
+      paddingVertical: 4,
+      borderRadius: RADIUS.pill,
+      borderWidth: 1,
+    },
+    toggleBtnText: {
+      fontSize: FONT.xs,
+      fontWeight: '700',
     },
   });
 
@@ -309,7 +393,7 @@ export function makeStyles(C: ThemeColors) {
     body:  { fontSize: FONT.sm, color: C.textMuted, textAlign: 'center' },
   });
 
-  return { screen, filter, card, form, empty };
+  return { screen, filter, college, positionHeader, card, form, empty };
 }
 
 export type AdminCandidatesStyles = ReturnType<typeof makeStyles>;

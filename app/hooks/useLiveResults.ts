@@ -44,6 +44,7 @@ export interface LivePosition {
   id: string;
   position_name: string;
   display_order: number;
+  college?: string;
   candidates: LiveCandidate[];
   totalVotes: number;
 }
@@ -68,13 +69,13 @@ export function useLiveResults(): UseLiveResultsReturn {
 
   const fetchResults = useCallback(async () => {
     try {
+      setIsLoading(true);  // ← add this
       setIsError(false);
       setError(null);
 
-      // 1. Fetch all positions ordered by display_order
       const { data: posData, error: posErr } = await supabase
         .from('Positions')
-        .select('id, position_name, display_order')
+        .select('id, position_name, display_order, college')
         .order('display_order', { ascending: true });
 
       if (posErr) throw posErr;
@@ -83,25 +84,20 @@ export function useLiveResults(): UseLiveResultsReturn {
         return;
       }
 
-      // 2. Fetch all candidates
       const { data: candData, error: candErr } = await supabase
         .from('Candidates')
         .select('id, name, partylist, position_id');
-
       if (candErr) throw candErr;
 
-      // 3. Fetch all valid votes (is_valid = true only)
       const { data: voteData, error: voteErr } = await supabase
         .from('Votes')
         .select('candidate_id, position_id')
         .eq('is_valid', true);
-
       if (voteErr) throw voteErr;
 
-      const allVotes = voteData ?? [];
-      const allCandidates = candData ?? [];
+      const allVotes      = voteData      ?? [];
+      const allCandidates = candData      ?? [];
 
-      // 4. Build enriched positions
       const enriched: LivePosition[] = posData.map(pos => {
         const candidates: LiveCandidate[] = allCandidates
           .filter(c => c.position_id === pos.id)
@@ -112,15 +108,17 @@ export function useLiveResults(): UseLiveResultsReturn {
             position_id: c.position_id,
             votes:       allVotes.filter(v => v.candidate_id === c.id).length,
           }))
-          // Sort descending by votes
           .sort((a, b) => b.votes - a.votes);
+
+        const positionVotes = allVotes.filter(v => v.position_id === pos.id);
 
         return {
           id:            pos.id,
           position_name: pos.position_name,
           display_order: pos.display_order,
+          college:       pos.college || 'Executive Council', 
           candidates,
-          totalVotes:    candidates.reduce((sum, c) => sum + c.votes, 0),
+          totalVotes:    positionVotes.length, 
         };
       });
 

@@ -241,18 +241,21 @@ export type Database = {
       }
       Positions: {
         Row: {
+          college: string | null
           created_at: string | null
           display_order: number
           id: string
           position_name: string
         }
         Insert: {
+          college?: string | null
           created_at?: string | null
           display_order?: number
           id?: string
           position_name: string
         }
         Update: {
+          college?: string | null
           created_at?: string | null
           display_order?: number
           id?: string
@@ -379,6 +382,24 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          id: number
+          name: string
+          user_id: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          user_id?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       UserRoles: {
         Row: {
           assigned_at: string | null
@@ -450,7 +471,7 @@ export type Database = {
       }
       Votes: {
         Row: {
-          candidate_id: string
+          candidate_id: string | null
           created_at: string | null
           id: string
           is_valid: boolean | null
@@ -458,7 +479,7 @@ export type Database = {
           student_id: string
         }
         Insert: {
-          candidate_id: string
+          candidate_id?: string | null
           created_at?: string | null
           id?: string
           is_valid?: boolean | null
@@ -466,7 +487,7 @@ export type Database = {
           student_id: string
         }
         Update: {
-          candidate_id?: string
+          candidate_id?: string | null
           created_at?: string | null
           id?: string
           is_valid?: boolean | null
