@@ -1,27 +1,12 @@
 /**
- * AdminDashboardScreen.tsx — Admin post management screen
+ * AdminDashboardScreen.tsx — Admin post & election management
  * ─────────────────────────────────────────────────────────────────────────────
  * Features:
  * - Summary header (total posts, announcement count, poll count)
  * - Filterable list of all posts (All / Notices / Polls tabs)
- * - Create / Edit via bottom sheet modal (title + content + type + poll options)
- * - Delete with confirmation alert
+ * - Create / Edit via bottom sheet modal
  * - Miting tab: Go Live toggle, Live Feed preview, Pending approval queue
- *
- * BACKEND:
- * Reads: usePosts() → app/hooks/usePosts.ts
- * Create: useCreatePost() → app/hooks/usePosts.ts
- * Update: useUpdatePost() → app/hooks/usePosts.ts
- * Delete: useDeletePost() → app/hooks/usePosts.ts
- *
- * Poll options are written to / replaced in PollOptions directly here
- * using the supabase client — no separate hook needed.
- *
- * HOOKS TO ADD (if not yet in usePosts.ts):
- * ─────────────────────────────────────────────────────────────────────────────
- * export function useCreatePost() { ... }
- * export function useUpdatePost() { ... }
- * export function useDeletePost() { ... }
+ * - Voting tab: Configure election start/end schedules securely
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -30,7 +15,7 @@ import React, {
 } from 'react';
 import {
   View, Text, FlatList, Pressable, TextInput, Modal,
-  ScrollView, StatusBar, Platform, Alert, ActivityIndicator,
+  ScrollView, StatusBar, Alert, ActivityIndicator,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -42,6 +27,7 @@ import { makeStyles, type AdminDashboardStyles } from './AdminDashboardScreen.st
 import { useThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
 import type { ThemeColors } from '../../theme';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -69,7 +55,7 @@ interface MitingQuestion {
   created_at: string;
 }
 
-type FeedTab = 'all' | 'announcement' | 'poll' | 'miting';
+type FeedTab = 'all' | 'announcement' | 'poll' | 'miting' | 'voting';
 
 interface ModalState { visible: boolean; mode: 'create' | 'edit'; post: RawPost | null }
 
@@ -114,8 +100,8 @@ const SummaryHeader: React.FC<{ posts: RawPost[] }> = ({ posts }) => {
 
   const stats = [
     { label: 'Total Posts',    value: total,         color: C.text,  icon: 'layers-outline'    as const },
-    { label: 'Announcements',  value: announcements, color: C.amber, icon: 'megaphone-outline'  as const },
-    { label: 'Polls',          value: polls,         color: C.green, icon: 'bar-chart-outline'  as const },
+    { label: 'Announcements',  value: announcements, color: C.amber, icon: 'megaphone-outline' as const },
+    { label: 'Polls',          value: polls,         color: C.green, icon: 'bar-chart-outline' as const },
   ];
 
   return (
@@ -365,6 +351,171 @@ const PostModal: React.FC<{
         </View>
       </View>
     </Modal>
+  );
+};
+
+// =============================================================================
+// VOTING CONTROL PANEL
+// =============================================================================
+
+// =============================================================================
+// VOTING CONTROL PANEL (WITH DATE PICKER)
+// =============================================================================
+
+const VotingControlPanel: React.FC<{
+  settings: any;
+  status: string;
+  isLoading: boolean;
+  isSaving: boolean;
+  onSave: (start: string | null, end: string | null) => void;
+}> = ({ settings, status, isLoading, isSaving, onSave }) => {
+  const { C } = useAdminDash();
+
+  const vs = useMemo(() => ({
+    card: {
+      backgroundColor: C.surface2, borderRadius: 16, borderWidth: 1,
+      borderColor: C.border, padding: 20, marginBottom: 16,
+    } as const,
+    statusRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 12 },
+    dot: { width: 8, height: 8, borderRadius: 4 } as const,
+    statusText: { fontSize: 11, fontWeight: '800' as const, letterSpacing: 1.2, textTransform: 'uppercase' as const },
+    title: { fontSize: 20, fontWeight: '800' as const, color: C.text, marginBottom: 8 },
+    desc: { fontSize: 13, color: C.textSub, lineHeight: 20, marginBottom: 20 },
+    label: { fontSize: 12, fontWeight: '700' as const, color: C.textMuted, marginBottom: 6 },
+    dateButton: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      backgroundColor: C.surface,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      marginBottom: 16,
+    },
+    dateButtonText: { color: C.text, fontSize: 15, fontWeight: '500' as const },
+    dateButtonPlaceholder: { color: C.textMuted, fontSize: 15 },
+    saveBtn: {
+      flexDirection: 'row' as const, alignItems: 'center' as const,
+      justifyContent: 'center' as const, borderRadius: 14, paddingVertical: 15,
+      backgroundColor: C.green, marginTop: 8,
+    },
+    saveBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#fff' },
+  }), [C]);
+
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  
+  const [isStartPickerVisible, setStartPickerVisible] = useState(false);
+  const [isEndPickerVisible, setEndPickerVisible] = useState(false);
+
+  // Hydrate local dates from settings perfectly
+  useEffect(() => {
+    if (settings) {
+      setStartDate(settings.voting_start_time ? new Date(settings.voting_start_time) : null);
+      setEndDate(settings.voting_end_time ? new Date(settings.voting_end_time) : null);
+    }
+  }, [settings]);
+
+  const handleSave = () => {
+    try {
+      const startISO = startDate ? startDate.toISOString() : null;
+      const endISO = endDate ? endDate.toISOString() : null;
+      
+      if (startDate && endDate && startDate > endDate) {
+        Alert.alert('Invalid Schedule', 'End time cannot be before the start time.');
+        return;
+      }
+      
+      onSave(startISO, endISO);
+    } catch (e: any) {
+      Alert.alert('Validation Error', e.message);
+    }
+  };
+
+  const formatDisplayDate = (d: Date | null) => {
+    if (!d) return 'Not set';
+    return d.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  };
+
+  let statusColor = C.textMuted;
+  let statusLabel = 'Unconfigured';
+  if (status === 'active') { statusColor = C.green; statusLabel = 'Voting Open Now'; }
+  else if (status === 'not_started') { statusColor = C.amber; statusLabel = 'Scheduled'; }
+  else if (status === 'ended') { statusColor = '#EF4444'; statusLabel = 'Ended'; }
+
+  if (isLoading) {
+    statusColor = C.textMuted;
+    statusLabel = 'Loading...';
+  }
+
+  return (
+    <View style={vs.card}>
+      <View style={vs.statusRow}>
+        <View style={[vs.dot, { backgroundColor: statusColor }]} />
+        <Text style={[vs.statusText, { color: statusColor }]}>{statusLabel}</Text>
+      </View>
+      <Text style={vs.title}>Voting Schedule</Text>
+      <Text style={vs.desc}>Configure when the election polls officially open and close for students.</Text>
+
+      {/* Start Date Picker */}
+      <Text style={vs.label}>Polls Open</Text>
+      <Pressable style={({pressed}) => [vs.dateButton, pressed && { opacity: 0.8 }]} onPress={() => setStartPickerVisible(true)}>
+        <Text style={startDate ? vs.dateButtonText : vs.dateButtonPlaceholder}>
+          {formatDisplayDate(startDate)}
+        </Text>
+        <Ionicons name="calendar-outline" size={18} color={C.textMuted} />
+      </Pressable>
+
+      <DateTimePickerModal
+        isVisible={isStartPickerVisible}
+        mode="datetime"
+        date={startDate || new Date()}
+        onConfirm={(date) => {
+          setStartDate(date);
+          setStartPickerVisible(false);
+        }}
+        onCancel={() => setStartPickerVisible(false)}
+        themeVariant={C.bg === '#0A0F0A' ? "dark" : "light"}
+      />
+
+      {/* End Date Picker */}
+      <Text style={vs.label}>Polls Close</Text>
+      <Pressable style={({pressed}) => [vs.dateButton, pressed && { opacity: 0.8 }]} onPress={() => setEndPickerVisible(true)}>
+        <Text style={endDate ? vs.dateButtonText : vs.dateButtonPlaceholder}>
+          {formatDisplayDate(endDate)}
+        </Text>
+        <Ionicons name="calendar-outline" size={18} color={C.textMuted} />
+      </Pressable>
+
+      <DateTimePickerModal
+        isVisible={isEndPickerVisible}
+        mode="datetime"
+        date={endDate || new Date()}
+        minimumDate={startDate || undefined}
+        onConfirm={(date) => {
+          setEndDate(date);
+          setEndPickerVisible(false);
+        }}
+        onCancel={() => setEndPickerVisible(false)}
+        themeVariant={C.bg === '#0A0F0A' ? "dark" : "light"}
+      />
+
+      <Pressable
+        style={({ pressed }) => [vs.saveBtn, (!isSaving && pressed) && { opacity: 0.88 }]}
+        onPress={handleSave}
+        disabled={isSaving || isLoading}
+      >
+        {isSaving 
+          ? <ActivityIndicator color="#fff" style={{ marginRight: 8 }} /> 
+          : <Ionicons name="save-outline" size={18} color="#fff" style={{ marginRight: 8 }} />}
+        <Text style={vs.saveBtnText}>{isSaving ? 'Saving...' : 'Update Schedule'}</Text>
+      </Pressable>
+    </View>
   );
 };
 
@@ -678,10 +829,11 @@ const PendingQuestionCard: React.FC<{
 // =============================================================================
 
 const TABS: { key: FeedTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'all',          label: 'All',     icon: 'layers-outline'   },
+  { key: 'all',          label: 'All',     icon: 'layers-outline'    },
   { key: 'announcement', label: 'Notices', icon: 'megaphone-outline' },
   { key: 'poll',         label: 'Polls',   icon: 'bar-chart-outline' },
   { key: 'miting',       label: 'Miting',  icon: 'mic-outline'       },
+  { key: 'voting',       label: 'Voting',  icon: 'calendar-outline'  },
 ];
 
 export function AdminDashboardScreen() {
@@ -691,7 +843,7 @@ export function AdminDashboardScreen() {
   const [isSaving,    setIsSaving]    = useState(false);
 
   // ── Miting state ──────────────────────────────────────────────────────────
-  const [mitingSubTab,      setMitingSubTab]      = useState<'live' | 'pending'>('live');
+  const [mitingSubTab,       setMitingSubTab]      = useState<'live' | 'pending'>('live');
   const [liveQuestions,     setLiveQuestions]     = useState<MitingQuestion[]>([]);
   const [pendingQuestions,  setPendingQuestions]  = useState<MitingQuestion[]>([]);
   const [pendingCount,      setPendingCount]      = useState(0);
@@ -718,7 +870,7 @@ export function AdminDashboardScreen() {
   const { mutateAsync: updatePost } = useUpdatePost();
   const { mutateAsync: deletePost } = useDeletePost();
 
-  const { settings, isLoading: settingsLoading } = useSettings();
+  const { settings, votingStatus, isLoading: settingsLoading } = useSettings();
   const { mutateAsync: updateSettings, isPending: isToggling } = useUpdateSettings();
   const isMitingActive = !!(settings?.is_miting_active);
   const isBusy = isToggling || isStartingSession;
@@ -891,9 +1043,19 @@ export function AdminDashboardScreen() {
     }
   };
 
+  // ── Voting schedule toggle ────────────────────────────────────────────────
+  const handleVotingSave = async (start: string | null, end: string | null) => {
+    try {
+      await updateSettings({ voting_start_time: start, voting_end_time: end });
+      Alert.alert('Success', 'Voting schedule updated successfully.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not update voting schedule.');
+    }
+  };
+
   // ── Derived data ──────────────────────────────────────────────────────────
   const posts    = (rawPosts ?? []) as RawPost[];
-  const filtered = activeTab === 'miting'
+  const filtered = (activeTab === 'miting' || activeTab === 'voting')
     ? []
     : posts.filter(p => activeTab === 'all' || p.type === activeTab);
 
@@ -1000,14 +1162,14 @@ export function AdminDashboardScreen() {
 
       {/* ── Section bar ── */}
       <View style={s.sectionBar}>
-        <Text style={s.sectionLabel}>Manage Posts</Text>
+        <Text style={s.sectionLabel}>Manage Dashboard</Text>
         <Pressable style={({ pressed }) => [s.createBtn, pressed && { opacity: 0.85 }]} onPress={openCreate}>
           <Ionicons name="add" size={16} color="#fff" />
           <Text style={s.createBtnText}>New Post</Text>
         </Pressable>
       </View>
 
-      {/* ── Main filter tabs (Miting tab gets pending badge) ── */}
+      {/* ── Main filter tabs ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1039,6 +1201,17 @@ export function AdminDashboardScreen() {
           </Pressable>
         ))}
       </ScrollView>
+
+      {/* ── Voting section ── */}
+      {activeTab === 'voting' && (
+        <VotingControlPanel
+          settings={settings}
+          status={votingStatus}
+          isLoading={settingsLoading}
+          isSaving={isToggling}
+          onSave={handleVotingSave}
+        />
+      )}
 
       {/* ── Miting section ── */}
       {activeTab === 'miting' && (
@@ -1157,7 +1330,7 @@ export function AdminDashboardScreen() {
           contentContainerStyle={s.listContent}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            activeTab === 'miting' ? null
+            (activeTab === 'miting' || activeTab === 'voting') ? null
             : isLoading ? (
               <View style={s.stateBox}>
                 <ActivityIndicator color={C.green} />

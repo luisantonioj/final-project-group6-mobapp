@@ -16,7 +16,8 @@
       "package": "com.anonymous.animoquorum"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "splash": {
       "image": "./assets/images/logoCrop.png",
