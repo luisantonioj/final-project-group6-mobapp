@@ -1,13 +1,17 @@
 /**
  * app/screens/student/VoteScreen.tsx
  *
- * Ballot screen — reads live candidate data from Supabase and submits 
+ * Ballot screen — reads live candidate data from Supabase and submits
  * securely using the authenticated user's session.
  *
  * FLOW:
  * 1. Setup phase   — student selects department + gives consent
  * 2. Ballot phase  — vote on Executive Council & Department positions
  * 3. Success phase — confirmation screen after submission (or Already Voted state)
+ *
+ * ABSTAIN: Every position card includes an "Abstain" option.
+ * Selecting Abstain counts toward progress (position is "done") but does NOT
+ * insert a vote row into the database for that position.
  */
 import React, { useState, useMemo, useCallback, useRef, useEffect, createContext, useContext } from 'react';
 import {
@@ -31,6 +35,11 @@ import { notifyVotingStarted, notifyVoteSubmitted } from '../../notifications/no
 import { useThemeColors, ThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
 
+// ─── Sentinel value for Abstain ────────────────────────────────────────────────
+// Stored in selectedCandidates[positionId] when the student chooses to abstain.
+// Abstain entries are excluded from the database insert.
+const ABSTAIN_ID = '__ABSTAIN__';
+
 // ─── File-local theme context (avoids prop-drilling C and s to sub-components) ─
 type VoteCtx = { C: ThemeColors; s: ReturnType<typeof makeStyles> };
 const VoteContext = createContext<VoteCtx>(null as any);
@@ -39,7 +48,13 @@ const useVC = () => useContext(VoteContext);
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type VoterDepartment = Exclude<Department, 'Executive Council'>;
 type Phase = 'setup' | 'ballot' | 'success' | 'already_voted';
-interface ConfirmEntry { positionName: string; candidateName: string; partylist: string | null; department: Department; }
+interface ConfirmEntry {
+  positionName: string;
+  candidateName: string;
+  partylist: string | null;
+  department: Department;
+  isAbstain: boolean;
+}
 
 const VOTER_DEPARTMENTS = DEPARTMENTS.filter((d): d is VoterDepartment => d !== 'Executive Council');
 
@@ -53,7 +68,12 @@ function toCandidateRow(c: Candidate): CandidateRow {
 }
 
 // ─── CandidateItem ─────────────────────────────────────────────────────────────
-const CandidateItem: React.FC<{ candidate: Candidate; selected: boolean; onSelect: () => void; onView: () => void }> = ({ candidate, selected, onSelect, onView }) => {
+const CandidateItem: React.FC<{
+  candidate: Candidate;
+  selected: boolean;
+  onSelect: () => void;
+  onView: () => void;
+}> = ({ candidate, selected, onSelect, onView }) => {
   const { C, s } = useVC();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -85,7 +105,11 @@ const CandidateItem: React.FC<{ candidate: Candidate; selected: boolean; onSelec
           <Text style={[s.candidateName, selected && s.candidateNameSelected]} numberOfLines={1}>{candidate.name}</Text>
           {candidate.partylist ? <Text style={s.candidateParty} numberOfLines={1}>{candidate.partylist}</Text> : null}
         </View>
-        <Pressable style={({ pressed }) => [s.viewProfileBtn, pressed && { opacity: 0.8 }]} onPress={onView} hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}>
+        <Pressable
+          style={({ pressed }) => [s.viewProfileBtn, pressed && { opacity: 0.8 }]}
+          onPress={onView}
+          hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+        >
           <Text style={s.viewProfileBtnText}>View</Text>
         </Pressable>
         <View style={[s.radio, selected && s.radioSelected]}>
@@ -96,24 +120,77 @@ const CandidateItem: React.FC<{ candidate: Candidate; selected: boolean; onSelec
   );
 };
 
-// ─── PositionCard ──────────────────────────────────────────────────────────────
-const PositionCard: React.FC<{ ballotPosition: BallotPosition; selectedId: string | undefined; onSelectCandidate: (id: string) => void; onViewCandidate: (c: Candidate) => void }> = ({ ballotPosition, selectedId, onSelectCandidate, onViewCandidate }) => {
+// ─── AbstainItem ───────────────────────────────────────────────────────────────
+const AbstainItem: React.FC<{
+  selected: boolean;
+  onSelect: () => void;
+}> = ({ selected, onSelect }) => {
   const { C, s } = useVC();
-  const isDone = !!selectedId;
-  const selectedCandidate = ballotPosition.candidates.find(c => c.id === selectedId);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePress = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 180, friction: 8 }),
+    ]).start();
+    onSelect();
+  }, [scaleAnim, onSelect]);
 
   return (
-    <View style={[s.positionCard, isDone && s.positionCardDone]}>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Pressable
+        style={({ pressed }) => [
+          s.abstainRow,
+          selected && s.abstainRowSelected,
+          pressed && { opacity: 0.82 },
+        ]}
+        onPress={handlePress}
+      >
+        <View style={[s.abstainIconWrap, selected && s.abstainIconWrapSelected]}>
+          <Ionicons name="hand-left-outline" size={18} color={selected ? C.amber : C.textMuted} />
+        </View>
+        <View style={s.candidateInfo}>
+          <Text style={[s.abstainLabel, selected && s.abstainLabelSelected]}>Abstain</Text>
+          <Text style={s.abstainSub}>I choose not to vote for this position</Text>
+        </View>
+        <View style={[s.radio, selected && s.radioAbstainSelected]}>
+          {selected && <View style={s.radioDotAbstain} />}
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+};
+
+// ─── PositionCard ──────────────────────────────────────────────────────────────
+const PositionCard: React.FC<{
+  ballotPosition: BallotPosition;
+  selectedId: string | undefined;
+  onSelectCandidate: (id: string) => void;
+  onViewCandidate: (c: Candidate) => void;
+}> = ({ ballotPosition, selectedId, onSelectCandidate, onViewCandidate }) => {
+  const { C, s } = useVC();
+  const isDone      = !!selectedId;
+  const isAbstaining = selectedId === ABSTAIN_ID;
+  const selectedCandidate = isAbstaining
+    ? null
+    : ballotPosition.candidates.find(c => c.id === selectedId);
+
+  return (
+    <View style={[s.positionCard, isDone && s.positionCardDone, isAbstaining && s.positionCardAbstained]}>
       <View style={s.positionHeader}>
         <View style={s.positionMeta}>
           <Text style={s.positionName}>{ballotPosition.position_name}</Text>
           <Text style={s.positionCount}>{ballotPosition.candidates.length} candidate{ballotPosition.candidates.length !== 1 ? 's' : ''}</Text>
         </View>
         {isDone
-          ? <View style={s.doneBadge}><Ionicons name="checkmark-circle" size={12} color={C.greenBright} /><Text style={s.doneBadgeText}> Selected</Text></View>
+          ? isAbstaining
+            ? <View style={s.abstainBadge}><Ionicons name="hand-left" size={11} color={C.amber} /><Text style={s.abstainBadgeText}> Abstaining</Text></View>
+            : <View style={s.doneBadge}><Ionicons name="checkmark-circle" size={12} color={C.greenBright} /><Text style={s.doneBadgeText}> Selected</Text></View>
           : <View style={s.pendingBadge}><Text style={s.pendingBadgeText}>Required</Text></View>
         }
       </View>
+
+      {/* Selection banner — shown for a chosen candidate */}
       {selectedCandidate && (
         <View style={s.selectionBanner}>
           <Ionicons name="checkmark-circle" size={14} color={C.greenBright} />
@@ -121,19 +198,53 @@ const PositionCard: React.FC<{ ballotPosition: BallotPosition; selectedId: strin
           {selectedCandidate.partylist ? <Text style={s.selectionParty} numberOfLines={1}>· {selectedCandidate.partylist}</Text> : null}
         </View>
       )}
+
+      {/* Abstain banner — shown when abstaining */}
+      {isAbstaining && (
+        <View style={s.abstainBanner}>
+          <Ionicons name="hand-left" size={13} color={C.amber} />
+          <Text style={s.abstainBannerText}>You chose to abstain from this position</Text>
+        </View>
+      )}
+
       <View style={s.candidateList}>
         {ballotPosition.candidates.map(c => (
-          <CandidateItem key={c.id} candidate={c} selected={c.id === selectedId}
-            onSelect={() => onSelectCandidate(c.id)} onView={() => onViewCandidate(c)} />
+          <CandidateItem
+            key={c.id}
+            candidate={c}
+            selected={c.id === selectedId}
+            onSelect={() => onSelectCandidate(c.id)}
+            onView={() => onViewCandidate(c)}
+          />
         ))}
+
+        {/* Divider before Abstain */}
+        <View style={s.abstainDivider}>
+          <View style={s.abstainDividerLine} />
+          <Text style={s.abstainDividerText}>or</Text>
+          <View style={s.abstainDividerLine} />
+        </View>
+
+        <AbstainItem
+          selected={isAbstaining}
+          onSelect={() => onSelectCandidate(ABSTAIN_ID)}
+        />
       </View>
     </View>
   );
 };
 
 // ─── ConfirmModal ──────────────────────────────────────────────────────────────
-const ConfirmModal: React.FC<{ visible: boolean; isSubmitting: boolean; entries: ConfirmEntry[]; onSubmit: () => void; onCancel: () => void }> = ({ visible, isSubmitting, entries, onSubmit, onCancel }) => {
+const ConfirmModal: React.FC<{
+  visible: boolean;
+  isSubmitting: boolean;
+  entries: ConfirmEntry[];
+  onSubmit: () => void;
+  onCancel: () => void;
+}> = ({ visible, isSubmitting, entries, onSubmit, onCancel }) => {
   const { C, s } = useVC();
+  const abstainCount = entries.filter(e => e.isAbstain).length;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={s.modalOverlay}>
@@ -142,28 +253,57 @@ const ConfirmModal: React.FC<{ visible: boolean; isSubmitting: boolean; entries:
             <View style={s.modalIconWrap}><Ionicons name="shield-checkmark-outline" size={22} color={C.greenBright} /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.modalTitle}>Confirm Your Votes</Text>
-              <Text style={s.modalSubtitle}>Review carefully — this cannot be undone.</Text>
+              <Text style={s.modalSubtitle}>
+                Review carefully — this cannot be undone.
+                {abstainCount > 0 ? `  ·  ${abstainCount} abstention${abstainCount > 1 ? 's' : ''}` : ''}
+              </Text>
             </View>
-            <Pressable onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={({ pressed }) => pressed && { opacity: 0.75 }} disabled={isSubmitting}>
+            <Pressable
+              onPress={onCancel}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={({ pressed }) => pressed && { opacity: 0.75 }}
+              disabled={isSubmitting}
+            >
               <Ionicons name="close" size={20} color={C.textMuted} />
             </Pressable>
           </View>
+
           <ScrollView style={s.confirmScroll} showsVerticalScrollIndicator={false} bounces={false}>
             {entries.map((entry, i) => (
               <View key={i} style={s.confirmRow}>
-                <View style={s.confirmDot} />
+                {entry.isAbstain
+                  ? <View style={s.confirmDotAbstain} />
+                  : <View style={s.confirmDot} />
+                }
                 <View style={{ flex: 1 }}>
                   <Text style={s.confirmPosition}>{entry.positionName}</Text>
-                  <Text style={s.confirmCandidate}>{entry.candidateName}</Text>
-                  {entry.partylist ? <Text style={s.confirmParty}>{entry.partylist}</Text> : null}
+                  {entry.isAbstain
+                    ? <Text style={s.confirmAbstainLabel}>Abstain</Text>
+                    : <Text style={s.confirmCandidate}>{entry.candidateName}</Text>
+                  }
+                  {!entry.isAbstain && entry.partylist
+                    ? <Text style={s.confirmParty}>{entry.partylist}</Text>
+                    : null
+                  }
                 </View>
               </View>
             ))}
             <View style={{ height: 8 }} />
           </ScrollView>
+
           <View style={s.modalActions}>
-            <Pressable style={({ pressed }) => [s.modalCancelBtn, pressed && { opacity: 0.85 }]} onPress={onCancel} disabled={isSubmitting}><Text style={s.modalCancelText}>Review Again</Text></Pressable>
-            <Pressable style={({ pressed }) => [s.modalSubmitBtn, (isSubmitting || pressed) && { opacity: 0.88 }]} onPress={onSubmit} disabled={isSubmitting}>
+            <Pressable
+              style={({ pressed }) => [s.modalCancelBtn, pressed && { opacity: 0.85 }]}
+              onPress={onCancel}
+              disabled={isSubmitting}
+            >
+              <Text style={s.modalCancelText}>Review Again</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [s.modalSubmitBtn, (isSubmitting || pressed) && { opacity: 0.88 }]}
+              onPress={onSubmit}
+              disabled={isSubmitting}
+            >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
@@ -181,12 +321,24 @@ const ConfirmModal: React.FC<{ visible: boolean; isSubmitting: boolean; entries:
 };
 
 // ─── SetupScreen ───────────────────────────────────────────────────────────────
-const SetupScreen: React.FC<{ selectedDept: VoterDepartment | null; onSelectDept: (d: VoterDepartment) => void; consented: boolean; onToggleConsent: () => void; onBegin: () => void; isLoading: boolean }> = ({ selectedDept, onSelectDept, consented, onToggleConsent, onBegin, isLoading }) => {
+const SetupScreen: React.FC<{
+  selectedDept: VoterDepartment | null;
+  onSelectDept: (d: VoterDepartment) => void;
+  consented: boolean;
+  onToggleConsent: () => void;
+  onBegin: () => void;
+  isLoading: boolean;
+}> = ({ selectedDept, onSelectDept, consented, onToggleConsent, onBegin, isLoading }) => {
   const { C, s } = useVC();
   const canBegin = !!selectedDept && consented && !isLoading;
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={s.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={s.setupContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={s.setupHero}>
         <View style={s.setupIconWrap}><Ionicons name="checkmark-done-circle-outline" size={36} color={C.greenBright} /></View>
         <Text style={s.setupTitle}>Cast Your Vote</Text>
@@ -265,11 +417,11 @@ const SuccessScreen: React.FC<{ alreadyVoted?: boolean }> = ({ alreadyVoted }) =
   return (
     <View style={s.successContainer}>
       <View style={s.successIconWrap}>
-        <Ionicons name={alreadyVoted ? "information-circle" : "checkmark-circle"} size={80} color={C.greenBright} />
+        <Ionicons name={alreadyVoted ? 'information-circle' : 'checkmark-circle'} size={80} color={C.greenBright} />
       </View>
       <Text style={s.successTitle}>{alreadyVoted ? 'Already Voted' : 'Vote Submitted!'}</Text>
       <Text style={s.successBody}>
-        {alreadyVoted 
+        {alreadyVoted
           ? 'You have already cast your ballot for this election.\n\nThank you for participating!'
           : 'Your choices have been securely recorded.\n\nThank you for participating in the DLSL Student Council Election, Lasallian!'
         }
@@ -314,22 +466,21 @@ export function VoteScreen() {
       const { data, error } = await supabase.from('Candidates').select('*, Positions(position_name)');
       if (error) throw error;
       return data;
-    }
+    },
   });
 
   const { data: hasVoted, isLoading: isLoadingVotes } = useQuery({
     queryKey: ['my_votes', userProfile?.id],
     queryFn: async () => {
-       if (!userProfile?.id) return false;
-       const { count, error } = await supabase
-         .from('Votes')
-         .select('id', { count: 'exact', head: true })
-         .eq('student_id', userProfile.id);
-       
-       if (error) throw error;
-       return (count ?? 0) > 0;
+      if (!userProfile?.id) return false;
+      const { count, error } = await supabase
+        .from('Votes')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', userProfile.id);
+      if (error) throw error;
+      return (count ?? 0) > 0;
     },
-    enabled: !!userProfile?.id
+    enabled: !!userProfile?.id,
   });
 
   // Automatically skip to Already Voted screen if they have previous votes
@@ -342,19 +493,22 @@ export function VoteScreen() {
   const submitVotesMutation = useMutation({
     mutationFn: async (selections: Record<string, string>) => {
       if (!userProfile?.id) throw new Error('You must be logged in to vote.');
-      
-      const votesToInsert = Object.entries(selections).map(([posId, candId]) => ({
-        student_id: userProfile.id,
-        position_id: posId,
-        candidate_id: candId,
-        is_valid: true
-      }));
 
-      const { data, error } = await supabase.from('Votes').insert(votesToInsert);
-      if (error) throw error;
-      return data;
+      // Abstentions 
+      const votesToInsert = Object.entries(selections)
+        .map(([posId, candId]) => ({
+          student_id:   userProfile.id,
+          position_id:  posId,
+          candidate_id: candId === ABSTAIN_ID ? null : candId,
+          is_valid:     true,
+        }));
+
+      if (votesToInsert.length > 0) {
+        const { error } = await supabase.from('Votes').insert(votesToInsert);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my_votes'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my_votes'] }),
   });
 
   // ─── Data Transformations ──────────────────────────────────────────────────
@@ -373,23 +527,23 @@ export function VoteScreen() {
       }
 
       return {
-        id: c.id,
-        name: c.name,
-        partylist: c.partylist || '',
-        position_id: c.position_id,
+        id:            c.id,
+        name:          c.name,
+        partylist:     c.partylist || '',
+        position_id:   c.position_id,
         position_name: posName as Position,
-        department: dept as Department,
-        photo_url: c.photo_url,
-        email: c.email,
-        credentials: c.credentials,
-        platform: c.platform,
+        department:    dept as Department,
+        photo_url:     c.photo_url,
+        email:         c.email,
+        credentials:   c.credentials,
+        platform:      c.platform,
       };
     });
   }, [dbCandidates]);
 
   const getCandidatesForBallot = useCallback((voterDepartment: VoterDepartment): BallotPosition[] => {
     const visible = candidates.filter((c) => {
-      const isExec = c.department === 'Executive Council';
+      const isExec      = c.department === 'Executive Council';
       const isDeptMatch = c.department === voterDepartment;
       return isExec || isDeptMatch;
     });
@@ -401,10 +555,10 @@ export function VoteScreen() {
 
       if (!positionMap.has(c.position_id)) {
         positionMap.set(c.position_id, {
-          position_id: c.position_id,
+          position_id:   c.position_id,
           position_name: c.position_name,
-          department: c.department,
-          candidates: [],
+          department:    c.department,
+          candidates:    [],
         });
       }
       positionMap.get(c.position_id)!.candidates.push(c);
@@ -435,15 +589,29 @@ export function VoteScreen() {
   const deptPositions = useMemo(() => ballotPositions.filter(bp => bp.department !== 'Executive Council'), [ballotPositions]);
 
   const totalPositions = ballotPositions.length;
-  const selectedCount  = useMemo(() => ballotPositions.filter(bp => !!selectedCandidates[bp.position_id]).length, [ballotPositions, selectedCandidates]);
-  const allSelected    = totalPositions > 0 && selectedCount === totalPositions;
-  const progressPct    = totalPositions > 0 ? (selectedCount / totalPositions) * 100 : 0;
+  // Abstain counts as "selected" for progress — student has made a decision
+  const selectedCount = useMemo(
+    () => ballotPositions.filter(bp => !!selectedCandidates[bp.position_id]).length,
+    [ballotPositions, selectedCandidates],
+  );
+  const allSelected = totalPositions > 0 && selectedCount === totalPositions;
+  const progressPct = totalPositions > 0 ? (selectedCount / totalPositions) * 100 : 0;
 
   const confirmEntries: ConfirmEntry[] = useMemo(() =>
-    ballotPositions.filter(bp => !!selectedCandidates[bp.position_id]).map(bp => {
-      const cand = bp.candidates.find(c => c.id === selectedCandidates[bp.position_id]);
-      return { positionName: bp.position_name, candidateName: cand?.name ?? '—', partylist: cand?.partylist ?? null, department: bp.department };
-    }),
+    ballotPositions
+      .filter(bp => !!selectedCandidates[bp.position_id])
+      .map(bp => {
+        const selId    = selectedCandidates[bp.position_id];
+        const isAbstain = selId === ABSTAIN_ID;
+        const cand     = isAbstain ? undefined : bp.candidates.find(c => c.id === selId);
+        return {
+          positionName:  bp.position_name,
+          candidateName: isAbstain ? 'Abstain' : cand?.name ?? '—',
+          partylist:     isAbstain ? null : cand?.partylist ?? null,
+          department:    bp.department,
+          isAbstain,
+        };
+      }),
   [ballotPositions, selectedCandidates]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
@@ -466,7 +634,7 @@ export function VoteScreen() {
       await submitVotesMutation.mutateAsync(selectedCandidates);
       await notifyVoteSubmitted();
       setConfirmVisible(false);
-      reset(); 
+      reset();
       setPhase('success');
     } catch (err: any) {
       Alert.alert('Submission Failed', err.message || 'Could not submit votes. You may have already voted.');
@@ -481,9 +649,13 @@ export function VoteScreen() {
       <View key={label}>
         <Text style={s.sectionLabel}>{label}</Text>
         {positions.map(bp => (
-          <PositionCard key={bp.position_id} ballotPosition={bp} selectedId={selectedCandidates[bp.position_id]}
+          <PositionCard
+            key={bp.position_id}
+            ballotPosition={bp}
+            selectedId={selectedCandidates[bp.position_id]}
             onSelectCandidate={id => selectCandidate(bp.position_id, id)}
-            onViewCandidate={c => setViewedCandidate(c)} />
+            onViewCandidate={c => setViewedCandidate(c)}
+          />
         ))}
       </View>
     );
@@ -495,25 +667,29 @@ export function VoteScreen() {
 
         {/* ── Setup phase ── */}
         {phase === 'setup' && (
-          <SetupScreen 
-            selectedDept={selectedDept} 
+          <SetupScreen
+            selectedDept={selectedDept}
             onSelectDept={setSelectedDept}
-            consented={consented} 
-            onToggleConsent={() => setConsented(v => !v)} 
-            onBegin={handleBegin} 
+            consented={consented}
+            onToggleConsent={() => setConsented(v => !v)}
+            onBegin={handleBegin}
             isLoading={isLoadingCandidates || isLoadingVotes}
           />
         )}
 
         {/* ── Success phases ── */}
-        {phase === 'success' && <SuccessScreen />}
+        {phase === 'success'       && <SuccessScreen />}
         {phase === 'already_voted' && <SuccessScreen alreadyVoted />}
 
         {/* ── Ballot phase ── */}
         {phase === 'ballot' && (
           <>
             <View style={s.header}>
-              <Pressable style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.75 }]} onPress={handleGoBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Pressable
+                style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.75 }]}
+                onPress={handleGoBack}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Ionicons name="chevron-back" size={20} color={C.textSub} />
               </Pressable>
               <View style={{ flex: 1 }}>
@@ -548,7 +724,9 @@ export function VoteScreen() {
                   {!allSelected && (
                     <View style={s.submitHint}>
                       <Ionicons name="information-circle-outline" size={14} color={C.textMuted} />
-                      <Text style={s.submitHintText}>{totalPositions - selectedCount} position{totalPositions - selectedCount !== 1 ? 's' : ''} remaining</Text>
+                      <Text style={s.submitHintText}>
+                        {totalPositions - selectedCount} position{totalPositions - selectedCount !== 1 ? 's' : ''} remaining — select a candidate or abstain
+                      </Text>
                     </View>
                   )}
                   <Pressable
@@ -571,17 +749,18 @@ export function VoteScreen() {
 
             <CandidateModal
               candidate={viewedCandidate ? toCandidateRow(viewedCandidate) : null}
-              visible={!!viewedCandidate} onClose={() => setViewedCandidate(null)}
+              visible={!!viewedCandidate}
+              onClose={() => setViewedCandidate(null)}
               alreadyVoted={viewedCandidate ? !!selectedCandidates[viewedCandidate.position_id] : false}
               onSelect={row => { selectCandidate(row.position_id, row.id); setViewedCandidate(null); }}
             />
 
-            <ConfirmModal 
-              visible={confirmVisible} 
+            <ConfirmModal
+              visible={confirmVisible}
               isSubmitting={isSubmitting}
               entries={confirmEntries}
-              onSubmit={handleConfirmSubmit} 
-              onCancel={() => setConfirmVisible(false)} 
+              onSubmit={handleConfirmSubmit}
+              onCancel={() => setConfirmVisible(false)}
             />
           </>
         )}
@@ -611,11 +790,13 @@ function makeStyles(C: ThemeColors) {
 
     sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: C.greenBright, textTransform: 'uppercase', marginBottom: 8, marginTop: 4 },
 
+    // ── Position card ──────────────────────────────────────────────────────────
     positionCard: {
       backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, marginBottom: 14, overflow: 'hidden',
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3, elevation: 2,
     },
-    positionCardDone: { borderColor: C.greenBright + '55' },
+    positionCardDone:      { borderColor: C.greenBright + '55' },
+    positionCardAbstained: { borderColor: C.amber + '55' },
     positionHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: C.border },
     positionMeta:     { gap: 2 },
     positionName:     { fontSize: 14, fontWeight: '700', color: C.text },
@@ -626,10 +807,19 @@ function makeStyles(C: ThemeColors) {
     pendingBadge:     { backgroundColor: C.surface2, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: C.border },
     pendingBadgeText: { fontSize: 11, fontWeight: '600', color: C.textMuted },
 
+    // Abstain badge (header)
+    abstainBadge:     { flexDirection: 'row', alignItems: 'center', backgroundColor: C.amberGlow, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: C.amber + '44' },
+    abstainBadgeText: { fontSize: 11, fontWeight: '700', color: C.amber },
+
+    // Selection banners
     selectionBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.greenLight, paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: borderBright },
     selectionName:   { fontSize: 13, fontWeight: '700', color: C.greenBright, flex: 1 },
     selectionParty:  { fontSize: 12, color: C.textSub },
-    candidateList:   { padding: 10, gap: 8 },
+
+    abstainBanner:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.amberGlow, paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.amber + '33' },
+    abstainBannerText: { fontSize: 13, fontWeight: '600', color: C.amber, flex: 1 },
+
+    candidateList: { padding: 10, gap: 8 },
 
     candidateRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface2 },
     candidateRowSelected: { backgroundColor: C.greenLight, borderColor: C.greenBright + '44' },
@@ -648,9 +838,33 @@ function makeStyles(C: ThemeColors) {
     viewProfileBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: borderBright, backgroundColor: C.surface },
     viewProfileBtnText: { fontSize: 10, color: C.textSub, fontWeight: '600' },
 
-    radio:         { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-    radioSelected: { borderColor: C.greenBright },
-    radioDot:      { width: 10, height: 10, borderRadius: 5, backgroundColor: C.greenBright },
+    radio:             { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+    radioSelected:     { borderColor: C.greenBright },
+    radioDot:          { width: 10, height: 10, borderRadius: 5, backgroundColor: C.greenBright },
+    radioAbstainSelected: { borderColor: C.amber },
+    radioDotAbstain:      { width: 10, height: 10, borderRadius: 5, backgroundColor: C.amber },
+
+    // ── Abstain divider ────────────────────────────────────────────────────────
+    abstainDivider:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 4 },
+    abstainDividerLine: { flex: 1, height: 1, backgroundColor: C.border },
+    abstainDividerText: { fontSize: 10, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
+
+    // ── Abstain row ────────────────────────────────────────────────────────────
+    abstainRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12,
+      borderRadius: 12, borderWidth: 1, borderColor: C.border,
+      backgroundColor: C.surface2, borderStyle: 'dashed',
+    },
+    abstainRowSelected: {
+      backgroundColor: C.amberGlow,
+      borderColor: C.amber + '66',
+      borderStyle: 'solid',
+    },
+    abstainIconWrap:         { width: 42, height: 42, borderRadius: 21, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+    abstainIconWrapSelected: { borderColor: C.amber, backgroundColor: C.amberGlow },
+    abstainLabel:            { fontSize: 13, fontWeight: '700', color: C.textMuted, marginBottom: 2 },
+    abstainLabelSelected:    { color: C.amber },
+    abstainSub:              { fontSize: 11, color: C.textMuted },
 
     emptyBallot:      { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
     emptyBallotTitle: { fontSize: 17, fontWeight: '700', color: C.text },
@@ -681,12 +895,14 @@ function makeStyles(C: ThemeColors) {
     modalTitle:   { fontSize: 17, fontWeight: '800', color: C.text },
     modalSubtitle:{ fontSize: 12, color: C.textMuted, marginTop: 2 },
 
-    confirmScroll:  { maxHeight: 340, marginBottom: 16 },
-    confirmRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-    confirmDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: C.greenBright, marginTop: 6, flexShrink: 0 },
-    confirmPosition:{ fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
-    confirmCandidate:{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 2 },
-    confirmParty:   { fontSize: 11, color: C.textSub },
+    confirmScroll:        { maxHeight: 340, marginBottom: 16 },
+    confirmRow:           { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+    confirmDot:           { width: 8, height: 8, borderRadius: 4, backgroundColor: C.greenBright, marginTop: 6, flexShrink: 0 },
+    confirmDotAbstain:    { width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber, marginTop: 6, flexShrink: 0 },
+    confirmPosition:      { fontSize: 10, fontWeight: '700', color: C.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
+    confirmCandidate:     { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 2 },
+    confirmAbstainLabel:  { fontSize: 14, fontWeight: '700', color: C.amber, fontStyle: 'italic', marginBottom: 2 },
+    confirmParty:         { fontSize: 11, color: C.textSub },
 
     modalActions:   { flexDirection: 'row', gap: 10, paddingTop: 4 },
     modalCancelBtn: { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 13, paddingVertical: 13, alignItems: 'center', backgroundColor: C.surface2 },
