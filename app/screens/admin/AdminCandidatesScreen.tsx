@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../utils/supabase';
 import { useDeleteCandidate } from '../../hooks/useCandidates';
+import { uploadCandidatePhoto, isLocalFileUri } from '../../utils/storage';
 
 import {
   useCandidateStore,
@@ -119,9 +120,9 @@ function validateForm(
   }
 
   if (form.email.trim()) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(form.email.trim())) {
-      errors.email = 'Please enter a valid email address.';
+    const dlslEmailRegex = /^[^\s@]+@dlsl\.edu\.ph$/i;
+    if (!dlslEmailRegex.test(form.email.trim())) {
+      errors.email = 'Email must be a valid @dlsl.edu.ph address.';
     }
   }
 
@@ -274,20 +275,34 @@ const CandidateFormSheet: React.FC<{
   const visibleErrors: FormErrors = saveAttempted ? currentErrors : {};
 
   const handlePickPhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please allow access to your photo library to upload a photo.');
-      return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your photo library to upload a photo.',
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setField('photo_uri', result.assets[0].uri);
+      }
+    } catch (err: any) {
+      Alert.alert(
+        'Could not open photo library',
+        err?.message ?? 'Please try again.',
+      );
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setField('photo_uri', result.assets[0].uri);
-    }
+  }, [setField]);
+
+  const handleRemovePhoto = useCallback(() => {
+    setField('photo_uri', null);
   }, [setField]);
 
   const handleSave = useCallback(async () => {
@@ -350,23 +365,42 @@ const CandidateFormSheet: React.FC<{
                   </View>
                 )}
               </Pressable>
-              <Pressable
-                onPress={handlePickPhoto}
-                style={({ pressed }) => ({
-                  marginTop: SPACE.sm,
-                  paddingHorizontal: SPACE.md,
-                  paddingVertical: SPACE.xs,
-                  borderRadius: RADIUS.pill,
-                  borderWidth: 1,
-                  borderColor: C.greenDim,
-                  backgroundColor: C.surface2,
-                  opacity: pressed ? 0.85 : 1,
-                })}
-              >
-                <Text style={{ fontSize: FONT.sm, color: C.textSub, fontWeight: '600' }}>
-                  {form.photo_uri ? 'Change Photo' : 'Upload from Gallery'}
-                </Text>
-              </Pressable>
+              <View style={{ flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.sm }}>
+                <Pressable
+                  onPress={handlePickPhoto}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: SPACE.md,
+                    paddingVertical: SPACE.xs,
+                    borderRadius: RADIUS.pill,
+                    borderWidth: 1,
+                    borderColor: C.greenDim,
+                    backgroundColor: C.surface2,
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <Text style={{ fontSize: FONT.sm, color: C.textSub, fontWeight: '600' }}>
+                    {form.photo_uri ? 'Change Photo' : 'Upload from Gallery'}
+                  </Text>
+                </Pressable>
+                {form.photo_uri ? (
+                  <Pressable
+                    onPress={handleRemovePhoto}
+                    style={({ pressed }) => ({
+                      paddingHorizontal: SPACE.md,
+                      paddingVertical: SPACE.xs,
+                      borderRadius: RADIUS.pill,
+                      borderWidth: 1,
+                      borderColor: 'rgba(239,68,68,0.35)',
+                      backgroundColor: C.redGlow,
+                      opacity: pressed ? 0.85 : 1,
+                    })}
+                  >
+                    <Text style={{ fontSize: FONT.sm, color: C.red, fontWeight: '600' }}>
+                      Remove
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
 
             {/* ── Full Name ─────────────────────────────────────────────── */}
@@ -704,10 +738,11 @@ function AdminCandidatesScreen() {
       let posName = c.Positions?.position_name || '';
 
       // Infer department directly from position_name (e.g. 'CBEAM Governor' -> dept: 'CBEAM', posName: 'Governor')
+      // DB always stores the format `${department} ${position}` (space separator) — see handleSave below.
       for (const d of DEPARTMENTS) {
-        if (d !== 'Executive Council' && posName.startsWith(d)) {
+        if (d !== 'Executive Council' && posName.startsWith(`${d} `)) {
           dept = d;
-          posName = posName.replace(`${d} `, '').replace(`${d}-`, '');
+          posName = posName.slice(d.length + 1);
           break;
         }
       }
@@ -798,7 +833,6 @@ function AdminCandidatesScreen() {
     );
   }, [deleteMutation]);
 
-  // ✅ Fix 2: Wrap handleSave logic inside a try/catch & await the mutation explicitly 
   const handleSave = useCallback(async (id: string | null, data: FormState) => {
     if (!data.department || !data.position) return;
 
@@ -817,21 +851,38 @@ function AdminCandidatesScreen() {
           .insert([{ position_name: expectedPosName }])
           .select()
           .single();
-        
+
         if (error) throw new Error(`Failed to create position: ${error.message}`);
-        
+
         posId = newPos.id;
         queryClient.invalidateQueries({ queryKey: ['positions'] });
       }
 
+      // Upload local photos to Supabase Storage. We can't persist a file:// URI
+      // because that path only exists on the admin's device — every other
+      // viewer (students, other admins) would see a broken image.
+      let photoUrl: string | null = data.photo_uri;
+      if (photoUrl && isLocalFileUri(photoUrl)) {
+        try {
+          photoUrl = await uploadCandidatePhoto(photoUrl, data.name);
+        } catch (uploadErr: any) {
+          Alert.alert(
+            'Photo Upload Failed',
+            uploadErr?.message ??
+              'Could not upload the candidate photo. Please check your connection and try again.',
+          );
+          return;
+        }
+      }
+
       const payload = {
         name:          data.name.trim(),
-        partylist:     data.partylist.trim() || null,
+        partylist:     data.partylist.trim()  || null,
         position_id:   posId,
-        email:         data.email.trim()     || null,
+        email:         data.email.trim()      || null,
         credentials:   data.credentials.trim() || null,
         platform:      data.platform.trim()    || null,
-        photo_url:     data.photo_uri, 
+        photo_url:     photoUrl,
       };
 
       if (id) {
@@ -840,7 +891,6 @@ function AdminCandidatesScreen() {
         await addMutation.mutateAsync(payload);
       }
 
-      // ✅ Fix 3: Only close the modal if no errors were thrown above!
       setFormVisible(false);
     } catch (err: any) {
       Alert.alert('Save Failed', err.message || 'An unexpected error occurred.');

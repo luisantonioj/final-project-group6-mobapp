@@ -40,9 +40,36 @@ export default function App() {
     // ── 3. Restore persisted session ─────────────────────────────────────────
     // onAuthStateChange handles session restore via INITIAL_SESSION / SIGNED_IN.
     // getSession is only needed as a fallback for the no-session case.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) setInitialized(true);
-    });
+    //
+    // If the persisted refresh token is stale (rotated, expired, or revoked
+    // server-side), Supabase throws "AuthApiError: Invalid Refresh Token:
+    // Refresh Token Not Found". We treat that as "no session" — wipe the
+    // local token cache so the next launch is clean, and let RootNavigator
+    // render the Auth stack.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session }, error }) => {
+        if (error) {
+          const msg = error.message ?? '';
+          if (msg.toLowerCase().includes('refresh token')) {
+            supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          } else {
+            console.warn('getSession error:', error);
+          }
+          setInitialized(true);
+          return;
+        }
+        if (!session) setInitialized(true);
+      })
+      .catch((e) => {
+        const msg = e?.message ?? '';
+        if (msg.toLowerCase().includes('refresh token')) {
+          supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        } else {
+          console.warn('getSession threw:', e);
+        }
+        setInitialized(true);
+      });
 
     // ── 4. Auth state listener ────────────────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
