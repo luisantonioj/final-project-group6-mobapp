@@ -5,13 +5,13 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, Pressable, FlatList,
   TextInput, StyleSheet, ActivityIndicator,
-  Animated, StatusBar, Platform,
+  Animated, StatusBar, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { Ionicons }         from '@expo/vector-icons';
-import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote } from '../../hooks/useMiting';
+import { useMitingQuestions, useUpvoteQuestion, useRemoveUpvote, useSubmitQuestion } from '../../hooks/useMiting';
 import { useAuthStore }     from '../../stores/authStore';
 import { supabase }         from '../../utils/supabase';
 import { notifyAdminAlert } from '../../notifications/notificationService';
@@ -89,6 +89,7 @@ export function MitingScreen() {
   const { data: questions, isLoading } = useMitingQuestions() as { data: Question[] | undefined, isLoading: boolean };
   const { mutateAsync: upvote }       = useUpvoteQuestion();
   const { mutateAsync: removeUpvote } = useRemoveUpvote();
+  const { mutateAsync: submitQuestion } = useSubmitQuestion();
 
   const [draft,          setDraft]        = useState('');
   const [submitting,     setSubmitting]   = useState(false);
@@ -133,10 +134,16 @@ export function MitingScreen() {
     if (!text || !userId) return;
     setSubmitting(true);
     try {
-      await supabase.from('MitingQuestions').insert({ student_id: userId, question_text: text });
-      setDraft(''); inputRef.current?.blur();
-      setShowToast(true); setTimeout(() => setShowToast(false), 3000);
-    } finally { setSubmitting(false); }
+      await submitQuestion({ questionText: text, studentId: userId });
+      setDraft(''); 
+      inputRef.current?.blur();
+      setShowToast(true); 
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (error: any) {
+      Alert.alert('Submission Failed', error?.message || 'Could not submit your question. Please try again.');
+    } finally { 
+      setSubmitting(false); 
+    }
   };
 
   const handleUpvote = async (questionId: string) => {

@@ -43,6 +43,21 @@ export function useMitingQuestions() {
   });
 }
 
+// POST /miting/questions
+export function useSubmitQuestion() {
+  return useMutation({
+    mutationFn: async ({ questionText, studentId }: { questionText: string; studentId: string }) => {
+      const { data, error } = await supabase
+        .from('MitingQuestions')
+        .insert({ question_text: questionText, student_id: studentId })
+        .select();
+        
+      if (error) throw error;
+      return data;
+    }
+  });
+}
+
 // POST /miting/questions/:id/upvote
 export function useUpvoteQuestion() {
   const qc = useQueryClient();
