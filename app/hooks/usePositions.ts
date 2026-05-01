@@ -13,6 +13,6 @@ export function usePositions() {
       if (error) throw error;
       return data;
     },
-    staleTime: Infinity, // positions never change mid-election
+    // staleTime: Infinity, // positions never change mid-election
   });
 }

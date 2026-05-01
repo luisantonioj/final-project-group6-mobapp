@@ -19,8 +19,6 @@ import { useLiveResults, LivePosition, LiveCandidate } from '../../hooks/useLive
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
-const TABS = ['All', 'Executive Council', 'CITE', 'CBEAM', 'CON', 'CEAS', 'CIHTM'];
-
 const COLLEGE_COLORS: { [key: string]: string } = {
   'Executive Council': '#3e9b43',
   CITE:   '#c20000',
@@ -174,6 +172,14 @@ export function AdminResultsScreen() {
     }
   }, [positions, activeTab]);
 
+  const tabs = useMemo(() => {
+    const preferred = ['Executive Council', 'CITE', 'CBEAM', 'CON', 'CEAS', 'CIHTM'];
+    const fromData  = Array.from(new Set(positions.map(p => p.college || 'Executive Council')));
+    const ordered   = preferred.filter(c => fromData.includes(c));
+    const extra     = fromData.filter(c => !preferred.includes(c));
+    return ['All', ...ordered, ...extra];
+  }, [positions]);
+
   return (
     <SafeAreaView style={S.screen.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
@@ -227,7 +233,7 @@ export function AdminResultsScreen() {
             style={S.filter.scrollRow}
           >
             <View style={S.filter.innerRow}>
-              {TABS.map(tab => {
+              {tabs.map(tab => {
                 const isActive = tab === activeTab;
                 const tabColor = COLLEGE_COLORS[tab] || C.green;
                 

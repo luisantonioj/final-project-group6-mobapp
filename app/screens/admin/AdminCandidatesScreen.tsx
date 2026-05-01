@@ -226,22 +226,33 @@ const PositionSelector: React.FC<{
   positions: string[];
   selected:  string;
   onChange:  (pos: string) => void;
-  onAdd:     (name: string) => void;    // cleanName only — dept context is in parent
+  onAdd:     (name: string) => Promise<void>;  // ← was void
   onDelete:  (name: string) => void;
 }> = ({ positions, selected, onChange, onAdd, onDelete }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
   const [adding,  setAdding]  = useState(false);
   const [newName, setNewName] = useState('');
+  const [isAdding, setIsAdding] = useState(false);  // ← loading state
 
-  const handleConfirmAdd = () => {
+  const handleConfirmAdd = async () => {  // ← async
     const trimmed = newName.trim();
-    if (trimmed && !positions.includes(trimmed)) {
-      onAdd(trimmed);
-      onChange(trimmed);
+    if (!trimmed || positions.includes(trimmed)) {
+      setNewName('');
+      setAdding(false);
+      return;
     }
-    setNewName('');
-    setAdding(false);
+    setIsAdding(true);
+    try {
+      await onAdd(trimmed);   // ← await DB insert first
+      onChange(trimmed);      // ← then select it
+      setNewName('');
+      setAdding(false);
+    } catch {
+      // error already alerted by parent
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (
@@ -340,9 +351,9 @@ const CandidateFormSheet: React.FC<{
   }, []);
 
   const allDepartments = useMemo(() => {
-    const fromDB = Array.from(new Set(parsedPositions.map(p => p.department)));
-    return Array.from(new Set([...DEPARTMENTS, ...fromDB, ...extraDepts]));
-  }, [parsedPositions, extraDepts]);
+  const fromDB = Array.from(new Set(parsedPositions.map(p => p.department)));
+  return Array.from(new Set([...DEPARTMENTS, ...fromDB, ...extraDepts]));
+}, [parsedPositions, extraDepts]);
 
   const availablePositions = useMemo(() => {
     if (!form.department) return [];
@@ -780,6 +791,13 @@ function AdminCandidatesScreen() {
       .map(dept => ({ department: dept, positionGroups: deptMap[dept] }));
   }, [candidates, activeFilter, dbPositions]);
 
+  const allDepts = useMemo(() => {
+    const fromDB = Array.from(new Set(
+      dbPositions.map(p => p.college || 'Executive Council')
+    ));
+    return Array.from(new Set([...DEPARTMENTS, ...fromDB]));
+  }, [dbPositions]);
+
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const openAdd = useCallback(() => {
@@ -866,11 +884,13 @@ function AdminCandidatesScreen() {
   const handleAddPosition = useCallback(async (dept: string, cleanName: string) => {
     const fullName = dept === 'Executive Council' ? cleanName : `${dept} ${cleanName}`;
     if (dbPositions.find(p => p.position_name === fullName)) return;
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('Positions')
-      .insert([{ position_name: fullName, college: dept === 'Executive Council' ? null : dept }]);
+      .insert([{ position_name: fullName, college: dept === 'Executive Council' ? null : dept }])
+      .select()
+      .single();  
     if (error) throw new Error(error.message);
-    queryClient.invalidateQueries({ queryKey: ['positions'] });
+    queryClient.setQueryData(['positions'], (old: any) => old ? [...old, data] : [data]);
   }, [dbPositions, queryClient]);
 
   const handleDeletePosition = useCallback(async (dept: string, cleanName: string) => {
@@ -882,7 +902,9 @@ function AdminCandidatesScreen() {
     }
     const { error } = await supabase.from('Positions').delete().eq('id', pos.id);
     if (error) throw new Error(error.message);
-    queryClient.invalidateQueries({ queryKey: ['positions'] });
+    queryClient.setQueryData(['positions'], (old: any) => 
+      old ? old.filter((p: any) => p.id !== pos.id) : []
+    );
   }, [dbPositions, candidates, queryClient]);
 
   const handleDeleteDepartment = useCallback(async (dept: string) => {
@@ -894,6 +916,9 @@ function AdminCandidatesScreen() {
       const { error } = await supabase.from('Positions').delete().in('id', deptPositions.map(p => p.id));
       if (error) throw new Error(error.message);
       queryClient.invalidateQueries({ queryKey: ['positions'] });
+      queryClient.setQueryData(['positions'], (old: any) => 
+        old ? old.filter((p: any) => (p.college || 'Executive Council') !== dept) : []
+      );
     }
   }, [dbPositions, candidates, queryClient]);
 
@@ -942,7 +967,7 @@ function AdminCandidatesScreen() {
               >
                 <Text style={[S.filter.tabText, activeFilter === 'all' && S.filter.tabTextActive]}>All</Text>
               </Pressable>
-              {DEPARTMENTS.map(d => (
+              {allDepts.map(d => (
                 <Pressable
                   key={d}
                   style={({ pressed }) => [S.filter.tab, activeFilter === d && S.filter.tabActive, pressed && { opacity: 0.85 }]}
