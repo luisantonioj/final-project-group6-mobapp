@@ -384,7 +384,7 @@ function makeStyles(C: ThemeColors) {
       shadowRadius:    8,
       elevation:       4,
     },
-    primaryBtnSwap: { backgroundColor: '#8B5CF6', shadowColor: '#8B5CF6' },
+    primaryBtnSwap: { backgroundColor: C.green, shadowColor: C.green },
     primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
     // Untouched Admin Row Styles
