@@ -59,7 +59,7 @@ export default function App() {
           setInitialized(true);
           return;
         }
-        if (!session) setInitialized(true);
+        setInitialized(true);
       })
       .catch((e) => {
         const msg = e?.message ?? '';
@@ -81,6 +81,7 @@ export default function App() {
         // Skip TOKEN_REFRESHED — only update session, don't re-fetch role
         if (_event === 'TOKEN_REFRESHED') {
           if (session) setSession(session);
+          setInitialized(true);
           return;
         }
 

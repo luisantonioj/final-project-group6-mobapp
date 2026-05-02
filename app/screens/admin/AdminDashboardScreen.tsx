@@ -1069,7 +1069,14 @@ export function AdminDashboardScreen() {
     try {
       let postId: string;
       if (id) {
-        await updatePost({ id, type: payload.type, title: payload.title, content: payload.content } as any);
+        await updatePost({ 
+          id, 
+          updates: { 
+            type: payload.type, 
+            title: payload.title, 
+            content: payload.content 
+          } 
+        });
         postId = id;
       } else {
         const created = await createPost({
@@ -1079,9 +1086,12 @@ export function AdminDashboardScreen() {
         } as any) as any;
         postId = created.id;
       }
+      
       if (payload.type === 'poll') {
         await savePollOptions(postId, payload.pollOptions);
       }
+      
+      await refetch();
       closeModal();
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Something went wrong. Please try again.');
@@ -1132,7 +1142,8 @@ export function AdminDashboardScreen() {
   }), [C]);
 
   // ── List header (JSX element, not a component — no hooks allowed here) ────
-  const ListHeader = (
+
+  const ListHeader = useCallback(() => (
     <>
       {/* ── App header ── */}
       <View style={s.appHeader}>
@@ -1157,10 +1168,8 @@ export function AdminDashboardScreen() {
         </View>
       </View>
 
-      {/* ── Summary cards ── */}
       {!isLoading && !isError && <SummaryHeader posts={posts} />}
 
-      {/* ── Section bar ── */}
       <View style={s.sectionBar}>
         <Text style={s.sectionLabel}>Manage Dashboard</Text>
         <Pressable style={({ pressed }) => [s.createBtn, pressed && { opacity: 0.85 }]} onPress={openCreate}>
@@ -1169,7 +1178,6 @@ export function AdminDashboardScreen() {
         </Pressable>
       </View>
 
-      {/* ── Main filter tabs ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1202,7 +1210,6 @@ export function AdminDashboardScreen() {
         ))}
       </ScrollView>
 
-      {/* ── Voting section ── */}
       {activeTab === 'voting' && (
         <VotingControlPanel
           settings={settings}
@@ -1213,10 +1220,8 @@ export function AdminDashboardScreen() {
         />
       )}
 
-      {/* ── Miting section ── */}
       {activeTab === 'miting' && (
         <>
-          {/* Control panel (Go Live / End Session) */}
           <MitingControlPanel
             isActive={isMitingActive}
             isLoading={settingsLoading}
@@ -1224,7 +1229,6 @@ export function AdminDashboardScreen() {
             onToggle={handleMitingToggle}
           />
 
-          {/* Sub-tabs: Live Feed | Pending */}
           <View style={mit.subTabRow}>
             <Pressable
               style={({ pressed }) => [
@@ -1234,14 +1238,8 @@ export function AdminDashboardScreen() {
               ]}
               onPress={() => setMitingSubTab('live')}
             >
-              <Ionicons
-                name="radio-outline"
-                size={14}
-                color={mitingSubTab === 'live' ? C.green : C.textMuted}
-              />
-              <Text style={[mit.subTabText, mitingSubTab === 'live' && mit.subTabTextActive]}>
-                Live Feed
-              </Text>
+              <Ionicons name="radio-outline" size={14} color={mitingSubTab === 'live' ? C.green : C.textMuted} />
+              <Text style={[mit.subTabText, mitingSubTab === 'live' && mit.subTabTextActive]}>Live Feed</Text>
             </Pressable>
 
             <Pressable
@@ -1252,14 +1250,8 @@ export function AdminDashboardScreen() {
               ]}
               onPress={() => setMitingSubTab('pending')}
             >
-              <Ionicons
-                name="time-outline"
-                size={14}
-                color={mitingSubTab === 'pending' ? C.green : C.textMuted}
-              />
-              <Text style={[mit.subTabText, mitingSubTab === 'pending' && mit.subTabTextActive]}>
-                Pending
-              </Text>
+              <Ionicons name="time-outline" size={14} color={mitingSubTab === 'pending' ? C.green : C.textMuted} />
+              <Text style={[mit.subTabText, mitingSubTab === 'pending' && mit.subTabTextActive]}>Pending</Text>
               {pendingQuestions.length > 0 && (
                 <View style={[mit.pendingBadge, { marginLeft: 2 }]}>
                   <Text style={mit.pendingBadgeText}>{pendingQuestions.length}</Text>
@@ -1268,7 +1260,6 @@ export function AdminDashboardScreen() {
             </Pressable>
           </View>
 
-          {/* Live Feed content */}
           {mitingSubTab === 'live' && (
             liveQuestions.length === 0 ? (
               <View style={mit.emptyBox}>
@@ -1278,19 +1269,14 @@ export function AdminDashboardScreen() {
             ) : (
               liveQuestions.map((q, i) => (
                 <LiveQuestionCard
-                  key={q.id}
-                  q={q}
-                  index={i}
-                  total={liveQuestions.length}
-                  isViewOnly={!isMitingActive}
-                  onDelete={handleDeleteLive}
+                  key={q.id} q={q} index={i} total={liveQuestions.length}
+                  isViewOnly={!isMitingActive} onDelete={handleDeleteLive}
                   isDeleting={deletingLiveId === q.id}
                 />
               ))
             )
           )}
 
-          {/* Pending content */}
           {mitingSubTab === 'pending' && (
             pendingQuestions.length === 0 ? (
               <View style={mit.emptyBox}>
@@ -1300,13 +1286,9 @@ export function AdminDashboardScreen() {
             ) : (
               pendingQuestions.map(q => (
                 <PendingQuestionCard
-                  key={q.id}
-                  q={q}
-                  isViewOnly={!isMitingActive}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  isApproving={approvingId === q.id}
-                  isRejecting={rejectingId === q.id}
+                  key={q.id} q={q} isViewOnly={!isMitingActive}
+                  onApprove={handleApprove} onReject={handleReject}
+                  isApproving={approvingId === q.id} isRejecting={rejectingId === q.id}
                 />
               ))
             )
@@ -1314,7 +1296,14 @@ export function AdminDashboardScreen() {
         </>
       )}
     </>
-  );
+  ), [
+    // ✅ All state/props the header depends on
+    s, C, isDark, isRefreshing, isLoading, isError, posts, activeTab, settings,
+    votingStatus, settingsLoading, isToggling, isMitingActive, isBusy, pendingCount,
+    mitingSubTab, liveQuestions, pendingQuestions, approvingId, rejectingId,
+    deletingLiveId, mit, handleRefresh, toggleTheme, openCreate, handleMitingToggle,
+    handleVotingSave, handleApprove, handleReject, handleDeleteLive,
+  ]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

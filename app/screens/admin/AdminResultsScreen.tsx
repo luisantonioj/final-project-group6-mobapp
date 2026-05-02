@@ -11,21 +11,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { makeStyles } from './AdminResultsScreen.styles';
+import { makeStyles, SPACE } from './AdminResultsScreen.styles';
 import type { AdminResultsStyles } from './AdminResultsScreen.styles';
 import { useThemeColors } from '../../theme';
 import { useThemeStore } from '../../stores/themeStore';
 import { useLiveResults, LivePosition, LiveCandidate } from '../../hooks/useLiveResults';
+import { useSettings, useUpdateSettings } from '../../hooks/useSettings';
+import { supabase } from '../../utils/supabase';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const COLLEGE_COLORS: { [key: string]: string } = {
-  'Executive Council': '#3e9b43',
-  CITE:   '#c20000',
-  CBEAM:  '#6b7aff',
-  CON:    '#F7A440',
-  CEAS:   '#4e85cd',
-  CIHTM:  '#A78BFA',
+  'Executive Council': '#033a06',
+  CITE:   '#DC2626',
+  CBEAM:  '#B45309',
+  CON:    '#16A34A',
+  CEAS:   '#1D4ED8',
+  CIHTM:  '#7C3AED',
+};
+
+const COLLEGE_POPULATIONS: Record<string, number> = {
+  CITE: 702, CBEAM: 669, CON: 749, CEAS: 748, CIHTM: 642,
 };
 
 const POSITION_ICONS: { [key: string]: string } = {
@@ -126,6 +132,83 @@ function CollegeSection({ college, positions, S }: {
 
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 
+function VoterTurnoutPanel({ positions, S, C }: {
+  positions: LivePosition[]; S: AdminResultsStyles; C: any;
+}) {
+  const stats = useMemo(() => {
+    const byCollege: Record<string, LivePosition[]> = {};
+    positions.forEach(p => {
+      const col = p.college || 'Executive Council';
+      if (!byCollege[col]) byCollege[col] = [];
+      byCollege[col].push(p);
+    });
+    const execPositions = byCollege['Executive Council'] || [];
+    const overallVoted = execPositions.length > 0
+      ? Math.max(...execPositions.map(p => p.totalVotes))
+      : positions.length > 0 ? Math.max(...positions.map(p => p.totalVotes)) : 0;
+
+    const colleges = Object.keys(byCollege)
+      .filter(k => k !== 'Executive Council')
+      .map(name => {
+        const pos = byCollege[name];
+        const voted = pos.length > 0 ? Math.max(...pos.map(p => p.totalVotes)) : 0;
+        const total = COLLEGE_POPULATIONS[name] || 1000;
+        const pct = total > 0 ? Math.round((voted / total) * 1000) / 10 : 0;
+        return { name, voted, total, pct, color: COLLEGE_COLORS[name] ?? '#888' };
+      })
+      .sort((a, b) => b.pct - a.pct);
+
+    const totalEnrolled = colleges.reduce((s, c) => s + c.total, 0) || 3510;
+    const overallPct = totalEnrolled > 0 ? Math.round((overallVoted / totalEnrolled) * 1000) / 10 : 0;
+    return { overallVoted, overallPct, totalEnrolled, colleges };
+  }, [positions]);
+
+  return (
+    <View>
+      <View style={[S.card.wrapper, { marginBottom: 16 }]}>
+        <View style={S.card.header}>
+          <Text style={S.card.title}>Overall Turnout</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={{ fontSize: 32, fontWeight: '800', color: C.green }}>{stats.overallPct}%</Text>
+          <Text style={{ fontSize: 13, color: C.textMuted }}>
+            {stats.overallVoted.toLocaleString()} / {stats.totalEnrolled.toLocaleString()} students
+          </Text>
+        </View>
+        <View style={{ height: 6, backgroundColor: C.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' }}>
+          <View style={{ width: `${Math.min(stats.overallPct, 100)}%`, height: '100%', backgroundColor: C.green, borderRadius: 3 }} />
+        </View>
+      </View>
+
+      {stats.colleges.map((col, idx) => (
+        <View key={col.name} style={S.card.wrapper}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <View style={{
+              width: 28, height: 28, borderRadius: 14,
+              backgroundColor: col.color + '22', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: col.color }}>{col.name[0]}</Text>
+            </View>
+            <Text style={[S.college.name, { flex: 1 }]}>{col.name}</Text>
+            <View style={[S.college.chip, { backgroundColor: col.color + '22' }]}>
+              <Text style={[S.college.chipText, { color: col.color }]}>#{idx + 1}</Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: col.color }}>{col.pct}%</Text>
+            <Text style={{ fontSize: 12, color: C.textMuted }}>
+              {col.voted.toLocaleString()} / {col.total.toLocaleString()}
+            </Text>
+          </View>
+          <View style={{ height: 6, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden' }}>
+            <View style={{ width: `${Math.min(col.pct, 100)}%`, height: '100%', backgroundColor: col.color, borderRadius: 3 }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function AdminResultsScreen() {
   const C = useThemeColors();
   const { isDark, toggleTheme } = useThemeStore();
@@ -135,6 +218,20 @@ export function AdminResultsScreen() {
 
   // Hook into our live Supabase data
   const { positions, isLoading, isError, error, refetch } = useLiveResults();
+
+  const { settings } = useSettings();
+  const { mutateAsync: updateSettings } = useUpdateSettings();
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const isTurnoutVisible = settings?.show_live_results !== false;
+
+  const handleToggleVisibility = async () => {
+    setTogglingVisibility(true);
+    try {
+      await updateSettings({ show_live_results: !isTurnoutVisible });
+    } finally {
+      setTogglingVisibility(false);
+    }
+  };
 
   // Calculate the massive global total across everything
   const grandTotal = useMemo(() => {
@@ -177,7 +274,7 @@ export function AdminResultsScreen() {
     const fromData  = Array.from(new Set(positions.map(p => p.college || 'Executive Council')));
     const ordered   = preferred.filter(c => fromData.includes(c));
     const extra     = fromData.filter(c => !preferred.includes(c));
-    return ['All', ...ordered, ...extra];
+    return ['Per Department', 'All', ...ordered, ...extra];
   }, [positions]);
 
   return (
@@ -194,11 +291,20 @@ export function AdminResultsScreen() {
         </View>
         
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={S.live.chip}>
-            <View style={S.live.dot} />
-            <Text style={S.live.text}>LIVE</Text>
-          </View>
-          
+          <Pressable
+            onPress={handleToggleVisibility}
+            disabled={togglingVisibility}
+            style={({ pressed }) => [S.live.controlsRow, pressed && { opacity: 0.75 }]}
+          >
+            {togglingVisibility
+              ? <ActivityIndicator size={16} color={C.text} style={{ padding: SPACE.xs }} />
+              : <Ionicons name={isTurnoutVisible ? 'eye-outline' : 'eye-off-outline'} size={20} color={C.text} style={{ padding: SPACE.xs }} />
+            }
+            <Text style={{ fontSize: 11, fontWeight: '600', color: C.text, paddingRight: SPACE.xs }}>
+              {isTurnoutVisible ? 'Visible' : 'Hidden'}
+            </Text>
+          </Pressable>
+
           <View style={S.live.controlsRow}>
             <Pressable
               onPress={refetch}
@@ -206,9 +312,6 @@ export function AdminResultsScreen() {
               style={({ pressed }) => [S.live.iconBtn, !isLoading && pressed && { opacity: 0.7 }]}
             >
               <Ionicons name="refresh-outline" size={20} color={C.text} />
-            </Pressable>
-            <Pressable onPress={toggleTheme} style={({ pressed }) => [S.live.iconBtn, pressed && { opacity: 0.7 }]}>
-              <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={C.text} />
             </Pressable>
           </View>
         </View>
@@ -258,16 +361,20 @@ export function AdminResultsScreen() {
 
           {/* ── Content ── */}
           {isError ? (
-              <View style={S.empty.wrapper}>
-                <Text style={S.empty.title}>Failed to load</Text>
-                <Text style={S.empty.body}>{error || 'Could not connect to live results.'}</Text>
-              </View>
-            ) : groupedSections.length === 0 ? (
-              <View style={S.empty.wrapper}>
-                <Text style={S.empty.title}>No Results</Text>
-                <Text style={S.empty.body}>No positions found for {activeTab}.</Text>
-              </View>
-            ) : (
+            <View style={S.empty.wrapper}>
+              <Text style={S.empty.title}>Failed to load</Text>
+              <Text style={S.empty.body}>{error || 'Could not connect to live results.'}</Text>
+            </View>
+          ) : activeTab === 'Per Department' ? (
+            positions.length === 0
+              ? <View style={S.empty.wrapper}><Text style={S.empty.title}>No data yet</Text></View>
+              : <VoterTurnoutPanel positions={positions} S={S} C={C} />
+          ) : groupedSections.length === 0 ? (
+            <View style={S.empty.wrapper}>
+              <Text style={S.empty.title}>No Results</Text>
+              <Text style={S.empty.body}>No positions found for {activeTab}.</Text>
+            </View>
+          ) : (
             groupedSections.map(({ college, positions }) => (
               <CollegeSection key={college} college={college} positions={positions} S={S} />
             ))

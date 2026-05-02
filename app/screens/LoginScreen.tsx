@@ -72,12 +72,18 @@ export function LoginScreen() {
         });
         if (authErr) throw new Error(authErr.message);
       } else {
-        const { error: authErr } = await supabase.auth.signUp({
+        const { data, error: authErr } = await supabase.auth.signUp({  // add `data`
           email: email.trim().toLowerCase(),
           password,
           options: { data: { name: name.trim() } },
         });
         if (authErr) throw new Error(authErr.message);
+
+        // ── ADD THIS ──
+        if (data.user && !data.session) {
+          setError('Check your email to verify your account before logging in.');
+          return;
+        }
       }
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong. Please try again.');

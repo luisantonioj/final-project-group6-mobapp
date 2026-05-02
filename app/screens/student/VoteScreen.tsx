@@ -463,7 +463,9 @@ export function VoteScreen() {
   const { data: dbCandidates = [], isLoading: isLoadingCandidates } = useQuery({
     queryKey: ['candidates', 'student'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('Candidates').select('*, Positions(position_name)');
+      const { data, error } = await supabase
+        .from('Candidates')
+        .select('*, Positions(position_name, college)'); // ← add college here
       if (error) throw error;
       return data;
     },
@@ -515,16 +517,15 @@ export function VoteScreen() {
 
   const candidates: Candidate[] = useMemo(() => {
     return dbCandidates.map((c: any) => {
-      let dept = 'Executive Council';
-      let posName = c.Positions?.position_name || '';
+      const college      = c.Positions?.college as string | null;
+      const dept: Department = college ? college as Department : 'Executive Council';
+      const fullPosName  = c.Positions?.position_name || '';
 
-      for (const d of DEPARTMENTS) {
-        if (d !== 'Executive Council' && posName.startsWith(d)) {
-          dept = d;
-          posName = posName.replace(`${d} `, '').replace(`${d}-`, '');
-          break;
-        }
-      }
+      // Strip the college prefix from the display name, same as AdminCandidatesScreen
+      const posName =
+        dept !== 'Executive Council' && fullPosName.startsWith(dept + ' ')
+          ? fullPosName.slice(dept.length + 1)
+          : fullPosName;
 
       return {
         id:            c.id,
@@ -532,7 +533,7 @@ export function VoteScreen() {
         partylist:     c.partylist || '',
         position_id:   c.position_id,
         position_name: posName as Position,
-        department:    dept as Department,
+        department:    dept,
         photo_url:     c.photo_url,
         email:         c.email,
         credentials:   c.credentials,

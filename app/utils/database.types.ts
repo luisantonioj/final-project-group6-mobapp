@@ -98,6 +98,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          parent_id: string | null
           post_id: string
           student_id: string
         }
@@ -105,6 +106,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           post_id: string
           student_id: string
         }
@@ -112,12 +114,49 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          parent_id?: string | null
           post_id?: string
           student_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "Comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "Comments"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "Comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "Posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Likes: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "Posts"

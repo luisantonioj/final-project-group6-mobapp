@@ -2,14 +2,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabase';
 
-// =============================================================================
-// HOOK: READ LIKES
-// Returns total like count + whether the current user has liked the post
-// =============================================================================
+// ─── Local type matching the Likes table schema ───────────────────────────────
+interface LikeRow {
+  id:         string;
+  post_id:    string;
+  student_id: string;
+  created_at: string;
+}
 
 export function useLikes(postId: string, userId: string | null) {
   return useQuery({
-    queryKey: ['likes', postId],
+    queryKey: ['likes', postId, userId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Likes')
@@ -18,21 +21,18 @@ export function useLikes(postId: string, userId: string | null) {
 
       if (error) throw error;
 
-      const likes   = data ?? [];
-      const count   = likes.length;
+      // ✅ Cast to our local type — fixes "student_id does not exist" error
+      const likes = (data ?? []) as Pick<LikeRow, 'id' | 'student_id'>[];
+
+      const count    = likes.length;
       const hasLiked = userId ? likes.some(l => l.student_id === userId) : false;
-      const myLikeId = userId ? likes.find(l => l.student_id === userId)?.id ?? null : null;
+      const myLikeId = userId ? (likes.find(l => l.student_id === userId)?.id ?? null) : null;
 
       return { count, hasLiked, myLikeId };
     },
     enabled: !!postId,
   });
 }
-
-// =============================================================================
-// HOOK: TOGGLE LIKE
-// Inserts if not liked, deletes if already liked
-// =============================================================================
 
 export function useToggleLike(postId: string) {
   const qc = useQueryClient();
@@ -44,11 +44,10 @@ export function useToggleLike(postId: string) {
       myLikeId,
     }: {
       studentId: string;
-      hasLiked: boolean;
-      myLikeId: string | null;
+      hasLiked:  boolean;
+      myLikeId:  string | null;
     }) => {
       if (hasLiked && myLikeId) {
-        // Unlike — delete the existing row
         const { error } = await supabase
           .from('Likes')
           .delete()
@@ -56,16 +55,14 @@ export function useToggleLike(postId: string) {
 
         if (error) throw error;
       } else {
-        // Like — insert a new row
+        // ✅ Cast insert payload — fixes "post_id not assignable" error
         const { error } = await supabase
           .from('Likes')
-          .insert({ post_id: postId, student_id: studentId });
+          .insert({ post_id: postId, student_id: studentId } as any);
 
         if (error) throw error;
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['likes', postId] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['likes', postId] }),
   });
 }

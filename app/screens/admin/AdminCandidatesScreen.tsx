@@ -20,6 +20,7 @@ import { supabase } from '../../utils/supabase';
 import { useDeleteCandidate } from '../../hooks/useCandidates';
 import { uploadCandidatePhoto, isLocalFileUri } from '../../utils/storage';
 import { usePositions } from '../../hooks/usePositions';
+import { useFocusEffect } from '@react-navigation/native';
 
 import {
   useCandidateStore,
@@ -75,6 +76,16 @@ const EMPTY_FORM: FormState = {
   credentials: '',
   platform:    '',
   photo_uri:   null,
+};
+
+const DEPT_BLOCK_START: Record<string, number> = {
+  'Executive Council': 10,
+  'CBEAM':             100,
+  'CEAS':              200,
+  'CIHTM':             300,
+  'CITE':              400,
+  'CON':               500,
+  // Add new colleges here as needed, in multiples of 100
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -202,13 +213,16 @@ const DepartmentSelector: React.FC<{
               value={newName}
               onChangeText={setNewName}
               onSubmitEditing={handleConfirmAdd}
-              onBlur={() => { setAdding(false); setNewName(''); }}
+              // No onBlur
               placeholder="e.g. CNAHS"
               placeholderTextColor={C.textMuted}
               style={[S.form.positionTab, { minWidth: 100, color: C.text }]}
             />
             <Pressable onPress={handleConfirmAdd} style={[S.form.positionTab, S.form.positionTabActive]}>
               <Text style={[S.form.positionTabText, S.form.positionTabTextActive]}>✓</Text>
+            </Pressable>
+            <Pressable onPress={() => { setAdding(false); setNewName(''); }} style={S.form.positionTab}>
+              <Text style={[S.form.positionTabText, { color: C.textMuted }]}>✕</Text>
             </Pressable>
           </View>
         ) : (
@@ -292,13 +306,25 @@ const PositionSelector: React.FC<{
               value={newName}
               onChangeText={setNewName}
               onSubmitEditing={handleConfirmAdd}
-              onBlur={() => { setAdding(false); setNewName(''); }}
+              // Remove onBlur entirely — it fires before onPress and kills the add
               placeholder="e.g. Auditor"
               placeholderTextColor={C.textMuted}
               style={[S.form.positionTab, { minWidth: 100, color: C.text }]}
             />
-            <Pressable onPress={handleConfirmAdd} style={[S.form.positionTab, S.form.positionTabActive]}>
-              <Text style={[S.form.positionTabText, S.form.positionTabTextActive]}>✓</Text>
+            <Pressable
+              onPress={handleConfirmAdd}
+              style={[S.form.positionTab, S.form.positionTabActive]}
+            >
+              {isAdding
+                ? <ActivityIndicator size={12} color={C.green} />
+                : <Text style={[S.form.positionTabText, S.form.positionTabTextActive]}>✓</Text>
+              }
+            </Pressable>
+            <Pressable
+              onPress={() => { setAdding(false); setNewName(''); }}
+              style={S.form.positionTab}
+            >
+              <Text style={[S.form.positionTabText, { color: C.textMuted }]}>✕</Text>
             </Pressable>
           </View>
         ) : (
@@ -356,13 +382,6 @@ const CandidateFormSheet: React.FC<{
   return Array.from(new Set([...DEPARTMENTS, ...fromDB, ...extraDepts]));
 }, [parsedPositions, extraDepts]);
 
-  const availablePositions = useMemo(() => {
-    if (!form.department) return [];
-    return parsedPositions
-      .filter(p => p.department === form.department)
-      .map(p => p.clean_name);
-  }, [form.department, parsedPositions]);
-
   const handleAddDept = useCallback((name: string) => {
     setExtraDepts(prev => [...prev, name]);
   }, []);
@@ -377,13 +396,31 @@ const CandidateFormSheet: React.FC<{
     }
   }, [form.department, onDeleteDepartment, setField]);
 
-  // PositionSelector passes only cleanName — we inject dept from form state here
+  const [localExtraPositions, setLocalExtraPositions] = useState<string[]>([]);
+
+  // Reset local positions when sheet opens/closes or department changes
+  useEffect(() => {
+    setLocalExtraPositions([]);
+  }, [visible, form.department]);
+
+  // Replace the existing availablePositions useMemo:
+  const availablePositions = useMemo(() => {
+    if (!form.department) return [];
+    const fromProps = parsedPositions
+      .filter(p => p.department === form.department)
+      .map(p => p.clean_name);
+    return Array.from(new Set([...fromProps, ...localExtraPositions]));
+  }, [form.department, parsedPositions, localExtraPositions]);
+
+  // Replace the existing handleAddPosition in CandidateFormSheet:
   const handleAddPosition = useCallback(async (cleanName: string) => {
     if (!form.department) return;
     try {
       await onAddPosition(form.department, cleanName);
+      setLocalExtraPositions(prev => [...prev, cleanName]);
     } catch (err: any) {
-      Alert.alert('Add Failed', err.message);
+      Alert.alert('Add Failed', err.message); // now shows real Supabase error
+      throw err; // rethrow so PositionSelector doesn't select a failed position
     }
   }, [form.department, onAddPosition]);
 
@@ -391,6 +428,7 @@ const CandidateFormSheet: React.FC<{
     if (!form.department) return;
     try {
       await onDeletePosition(form.department, cleanName);
+      setLocalExtraPositions(prev => prev.filter(p => p !== cleanName));
       if (form.position === cleanName) setField('position', '');
     } catch (err: any) {
       Alert.alert('Delete Failed', err.message);
@@ -707,6 +745,12 @@ function AdminCandidatesScreen() {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
   const queryClient = useQueryClient();
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['positions'] });
+    }, [queryClient])
+  );
 
   const disabledPositions      = useCandidateStore(state => state.disabledPositions);
   const togglePositionDisabled = useCandidateStore(state => state.togglePositionDisabled);
@@ -734,7 +778,34 @@ function AdminCandidatesScreen() {
     },
   });
 
-  const deleteMutation = useDeleteCandidate();
+  const deleteMutation = useMutation({
+    mutationFn: async (candidateId: string) => {
+      // Step 1: Nullify votes referencing this candidate
+      // (sets candidate_id to NULL rather than deleting votes,
+      //  preserving the voter turnout count and audit trail)
+      const { error: voteError } = await supabase
+        .from('Votes')
+        .update({ candidate_id: null })
+        .eq('candidate_id', candidateId);
+
+      if (voteError) throw new Error(`Failed to unlink votes: ${voteError.message}`);
+
+      // Step 2: Now safe to delete the candidate
+      const { error: deleteError } = await supabase
+        .from('Candidates')
+        .delete()
+        .eq('id', candidateId);
+
+      if (deleteError) throw new Error(`Failed to delete candidate: ${deleteError.message}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['candidates', 'admin'] });
+    },
+    onError: (err: any) => {
+      Alert.alert('Deletion Failed', err.message);
+    },
+  });
 
   const addMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -849,14 +920,13 @@ function AdminCandidatesScreen() {
   const confirmDelete = useCallback((c: Candidate) => {
     Alert.alert(
       'Delete Candidate',
-      `Remove "${c.name}" from the ballot? This cannot be undone.`,
+      `Remove "${c.name}" from the ballot? Any votes cast for this candidate will be unlinked. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
-          onPress: () => deleteMutation.mutate(c.id, {
-            onError: err => Alert.alert('Deletion Failed', err.message),
-          }),
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteMutation.mutate(c.id), // ← no onError needed here anymore
         },
       ],
     );
@@ -926,27 +996,96 @@ function AdminCandidatesScreen() {
   const handleAddPosition = useCallback(async (dept: string, cleanName: string) => {
     const fullName = dept === 'Executive Council' ? cleanName : `${dept} ${cleanName}`;
     if (dbPositions.find(p => p.position_name === fullName)) return;
+
+    // ─── Smart display_order using sparse convention ───────────────────────
+    // Department blocks: Executive=0s, CBEAM=100s, CEAS=200s, etc.
+    // Within a block, gap of 10. New positions appended at end of their block.
+    // BS/Program Coordinators always get a higher number within the block.
+
+    const DEPT_BLOCK_START: Record<string, number> = {
+      'Executive Council': 10,
+      'CBEAM':             100,
+      'CEAS':              200,
+      'CIHTM':             300,
+      'CITE':              400,
+      'CON':               500,
+    };
+
+    const BLOCK_SIZE = 100; // each dept owns a range of 100
+
+    let newOrder: number;
+
+    const blockStart = DEPT_BLOCK_START[dept];
+
+    if (blockStart !== undefined) {
+      // Known department — find the highest display_order within this block
+      const blockEnd = blockStart + BLOCK_SIZE - 1;
+      const sibling  = dbPositions
+        .filter(p => p.display_order >= blockStart && p.display_order <= blockEnd)
+        .sort((a, b) => b.display_order - a.display_order)[0];
+
+      if (sibling) {
+        // Snap to the next multiple of 10 above the current max
+        newOrder = Math.ceil((sibling.display_order + 1) / 10) * 10;
+        // Safety: don't overflow into the next dept block
+        if (newOrder > blockEnd) newOrder = sibling.display_order + 1;
+      } else {
+        // Empty block — start at block start
+        newOrder = blockStart;
+      }
+    } else {
+      // Brand new / unknown department — assign the next available 100-block
+      const usedBlockStarts = Object.values(DEPT_BLOCK_START);
+      const maxKnownBlock   = Math.max(...usedBlockStarts); // e.g. 500
+      const allBlockStarts  = dbPositions
+        .map(p => Math.floor(p.display_order / BLOCK_SIZE) * BLOCK_SIZE)
+        .filter(b => b > 0);
+      const maxUsedBlock = allBlockStarts.length > 0
+        ? Math.max(...allBlockStarts)
+        : maxKnownBlock;
+
+      const nextBlock = Math.ceil((Math.max(maxUsedBlock, maxKnownBlock) + 1) / BLOCK_SIZE) * BLOCK_SIZE;
+      newOrder = nextBlock;
+
+      // Register this new dept in our local map for subsequent additions in the same session
+      DEPT_BLOCK_START[dept] = nextBlock;
+    }
+
     const { data, error } = await supabase
       .from('Positions')
-      .insert([{ position_name: fullName, college: dept === 'Executive Council' ? null : dept }])
+      .insert([{
+        position_name: fullName,
+        college:       dept === 'Executive Council' ? null : dept,
+        display_order: newOrder,
+      }])
       .select()
-      .single();  
-    if (error) throw new Error(error.message);
+      .single();
+
+    if (error) throw new Error(`Supabase: ${error.message} (code: ${error.code})`);
     queryClient.setQueryData(['positions'], (old: any) => old ? [...old, data] : [data]);
+    queryClient.invalidateQueries({ queryKey: ['positions'] });
   }, [dbPositions, queryClient]);
 
   const handleDeletePosition = useCallback(async (dept: string, cleanName: string) => {
     const fullName = dept === 'Executive Council' ? cleanName : `${dept} ${cleanName}`;
     const pos = dbPositions.find(p => p.position_name === fullName);
-    if (!pos) return;
+
+    if (!pos) {
+      Alert.alert('Delete Failed', `Position "${cleanName}" not found in local data. Try refreshing.`);
+      return;
+    }
+
     if (candidates.some(c => c.position_id === pos.id)) {
       throw new Error(`"${cleanName}" still has candidates. Remove them first.`);
     }
+
     const { error } = await supabase.from('Positions').delete().eq('id', pos.id);
-    if (error) throw new Error(error.message);
-    queryClient.setQueryData(['positions'], (old: any) => 
+    if (error) throw new Error(`Supabase: ${error.message} (code: ${error.code})`);
+
+    queryClient.setQueryData(['positions'], (old: any) =>
       old ? old.filter((p: any) => p.id !== pos.id) : []
     );
+    queryClient.invalidateQueries({ queryKey: ['positions'] });
   }, [dbPositions, candidates, queryClient]);
 
   const handleDeleteDepartment = useCallback(async (dept: string) => {

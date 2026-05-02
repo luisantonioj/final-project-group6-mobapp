@@ -1,12 +1,13 @@
 /**
- * FeedScreen.tsx — Student home screen (FeedList route)
+ * DashboardScreen.tsx — Student home screen
  * ─────────────────────────────────────────────────────────────────────────────
  * BACKEND STATUS:
  *   ✅ Posts / Announcements  → usePosts()
  *   ✅ Poll voting            → usePollResponses() + useSubmitPollResponse()
  *   ✅ Live vote results      → useLiveResults() — gated by show_live_results
  *   ✅ Voting countdown       → useSettings() (voting_start_time/voting_end_time)
- *   🔲 Comments               → local state only (useCreateComment not ready)
+ *   ✅ Comments               → useComments() + useCreateComment() + useDeleteComment()
+ *   ✅ Likes                  → useLikes() + useToggleLike()
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -256,17 +257,20 @@ const VotingCountdown: React.FC = () => {
 // SECTION 2 — VOTER TURNOUT DASHBOARD
 // =============================================================================
 
-const DUMMY_TURNOUT = {
-  totalVoters: 5255,
-  totalVoted:  3121,
-  asOf:        'Apr 15, 2026 · 08:02 PM',
-  colleges: [
-    { name: 'CON',       pct: 84.9, voted: 636, total: 749,  color: '#16A34A' },
-    { name: 'CEAS', pct: 63.9, voted: 478, total: 748,  color: '#1D4ED8' },
-    { name: 'CBEAM',     pct: 59.9, voted: 401, total: 669,  color: '#B45309' },
-    { name: 'CIHTM',     pct: 48.6, voted: 312, total: 642,  color: '#7C3AED' },
-    { name: 'CITE',      pct: 41.2, voted: 289, total: 702,  color: '#DC2626' },
-  ],
+const COLLEGE_COLORS: Record<string, string> = {
+  CITE:   '#DC2626',
+  CBEAM:  '#B45309',
+  CON:    '#16A34A',
+  CEAS:   '#1D4ED8',
+  CIHTM:  '#7C3AED',
+};
+
+const COLLEGE_POPULATIONS: Record<string, number> = {
+  CITE:   702,
+  CBEAM:  669,
+  CON:    749,
+  CEAS:   748,
+  CIHTM:  642,
 };
 
 const DonutRing: React.FC<{ pct: number; size: number; stroke: number }> = ({ pct, size, stroke }) => {
@@ -299,15 +303,62 @@ const LiveVotingBoard: React.FC = () => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
 
-  const { totalVoters, totalVoted, asOf, colleges } = DUMMY_TURNOUT;
-  const overallPct = Math.round((totalVoted / totalVoters) * 100 * 10) / 10;
+  const { positions, isLoading } = useLiveResults();
+
+  const stats = useMemo(() => {
+    if (!positions || positions.length === 0) return null;
+
+    const byCollege: Record<string, LivePosition[]> = {};
+    positions.forEach(p => {
+      const col = p.college || 'Executive Council';
+      if (!byCollege[col]) byCollege[col] = [];
+      byCollege[col].push(p);
+    });
+
+    const execPositions = byCollege['Executive Council'] || [];
+    const overallVoted = execPositions.length > 0
+      ? Math.max(...execPositions.map(p => p.totalVotes))
+      : positions.length > 0 ? Math.max(...positions.map(p => p.totalVotes)) : 0;
+
+    const collegeStats = Object.keys(byCollege)
+      .filter(k => k !== 'Executive Council')
+      .map(colName => {
+        const pos = byCollege[colName];
+        const voted = pos.length > 0 ? Math.max(...pos.map(p => p.totalVotes)) : 0;
+        const total = COLLEGE_POPULATIONS[colName] || 1000;
+        const pct = total > 0 ? Math.round((voted / total) * 100 * 10) / 10 : 0;
+        return { name: colName, pct, voted, total, color: COLLEGE_COLORS[colName] || C.green };
+      })
+      .sort((a, b) => b.pct - a.pct);
+
+    const overallTotalVoters = collegeStats.reduce((sum, c) => sum + c.total, 0) || 5255;
+    const overallPct = overallTotalVoters > 0 ? Math.round((overallVoted / overallTotalVoters) * 100 * 10) / 10 : 0;
+
+    return {
+      totalVoters: overallTotalVoters,
+      totalVoted: overallVoted,
+      asOf: new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }),
+      colleges: collegeStats,
+      overallPct,
+    };
+  }, [positions, C.green]);
+
+  if (isLoading) {
+    return (
+      <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 32, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={C.green} />
+      </View>
+    );
+  }
+
+  if (!stats) return null;
+
+  const { totalVoters, totalVoted, asOf, colleges, overallPct } = stats;
   const topCollege = colleges[0];
   const rest       = colleges.slice(1);
 
   const rows: typeof rest[] = [];
-  for (let i = 0; i < rest.length; i += 2) {
-    rows.push(rest.slice(i, i + 2));
-  }
+  for (let i = 0; i < rest.length; i += 2) rows.push(rest.slice(i, i + 2));
 
   return (
     <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 14 }}>
@@ -319,7 +370,6 @@ const LiveVotingBoard: React.FC = () => {
         </View>
       </View>
 
-      {/* Summary card */}
       <View style={[S.shared.card, { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 }]}>
         <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center' }}>
           <DonutRing pct={overallPct} size={80} stroke={10} />
@@ -331,9 +381,7 @@ const LiveVotingBoard: React.FC = () => {
           <Text style={{ fontSize: 10, color: C.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
             SG Elections 2025–2026
           </Text>
-          <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>
-            As of {asOf}
-          </Text>
+          <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>As of {asOf}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
             <Text style={{ fontSize: 24, fontWeight: '700', color: C.green }}>{overallPct}%</Text>
             <Text style={{ fontSize: 13, color: C.textMuted }}>
@@ -343,80 +391,49 @@ const LiveVotingBoard: React.FC = () => {
         </View>
       </View>
 
-      {/* #1 College featured card */}
-      <View style={[S.shared.card, {
-        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12,
-        borderColor: C.green, borderWidth: 1.5,
-      }]}>
-        <View style={{
-          width: 44, height: 44, borderRadius: 22,
-          backgroundColor: C.surface2, // there is no green glow
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: C.green }}>
-            {topCollege.name[0]}
-          </Text>
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 2 }}>
-            {topCollege.name}
-          </Text>
-          <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>
-            {topCollege.pct}% participation · {topCollege.voted.toLocaleString()} / {topCollege.total.toLocaleString()}
-          </Text>
-          <View style={{ backgroundColor: C.border, borderRadius: 4, height: 5, overflow: 'hidden' }}>
-            <View style={{ width: `${topCollege.pct}%`, height: '100%', backgroundColor: C.green, borderRadius: 4 }} />
+      {topCollege && (
+        <View style={[S.shared.card, { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, borderColor: C.green, borderWidth: 1.5 }]}>
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: C.green }}>{topCollege.name[0]}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 2 }}>{topCollege.name}</Text>
+            <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>
+              {topCollege.pct}% participation · {topCollege.voted.toLocaleString()} / {topCollege.total.toLocaleString()}
+            </Text>
+            <View style={{ backgroundColor: C.border, borderRadius: 4, height: 5, overflow: 'hidden' }}>
+              <View style={{ width: `${topCollege.pct}%`, height: '100%', backgroundColor: C.green, borderRadius: 4 }} />
+            </View>
+          </View>
+          <View style={{ backgroundColor: C.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.green }}>#1</Text>
+            <Text style={{ fontSize: 9, color: C.green, textAlign: 'center', marginTop: 1 }}>Most{'\n'}Engaged</Text>
           </View>
         </View>
+      )}
 
-        <View style={{
-          backgroundColor: C.surface2, borderRadius: 10, // there is no green glow
-          paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center',
-        }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: C.green }}>#1</Text>
-          <Text style={{ fontSize: 9, color: C.green, textAlign: 'center', marginTop: 1 }}>Most{''}Engaged</Text>
-        </View>
-      </View>
-
-      {/* Remaining colleges in 2-col grid */}
       {rows.map((pair, ri) => (
-        <View key={ri} style={{ flexDirection: 'row', gap: 10, }}>
+        <View key={ri} style={{ flexDirection: 'row', gap: 10 }}>
           {pair.map((col, ci) => {
             const rank = ri * 2 + ci + 2;
             return (
               <View key={col.name} style={[S.shared.card, { flex: 1, gap: 6 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{
-                    width: 32, height: 32, borderRadius: 16,
-                    backgroundColor: col.color + '22',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: col.color }}>
-                      {col.name[0]}
-                    </Text>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: col.color + '22', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: col.color }}>{col.name[0]}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: C.text }} numberOfLines={1}>
-                      {col.name}
-                    </Text>
-                    <Text style={{ fontSize: 10, color: C.textMuted }}>
-                      {col.pct}%
-                    </Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: C.text }} numberOfLines={1}>{col.name}</Text>
+                    <Text style={{ fontSize: 10, color: C.textMuted }}>{col.pct}%</Text>
                   </View>
-                  <View style={{
-                    backgroundColor: C.surface,
-                    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
-                  }}>
+                  <View style={{ backgroundColor: C.surface, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
                     <Text style={{ fontSize: 11, fontWeight: '600', color: C.textMuted }}>#{rank}</Text>
                   </View>
                 </View>
                 <View style={{ backgroundColor: C.border, borderRadius: 3, height: 4, overflow: 'hidden' }}>
                   <View style={{ width: `${col.pct}%`, height: '100%', backgroundColor: col.color, borderRadius: 3 }} />
                 </View>
-                <Text style={{ fontSize: 10, color: C.textMuted }}>
-                  {col.voted.toLocaleString()} / {col.total.toLocaleString()}
-                </Text>
+                <Text style={{ fontSize: 10, color: C.textMuted }}>{col.voted.toLocaleString()} / {col.total.toLocaleString()}</Text>
               </View>
             );
           })}
@@ -433,8 +450,6 @@ const LiveVotingBoard: React.FC = () => {
 const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
   const C = useThemeColors();
 
-  // pStyles moved inside component — was a module-level const using COLORS (undefined at load time)
-  // COLORS.bgElevated did not exist in ThemeColors; replaced with C.surface
   const pStyles = useMemo(() => StyleSheet.create({
     optionBtn: {
       flexDirection: 'row', alignItems: 'center',
@@ -442,35 +457,26 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
       borderRadius: 10, backgroundColor: C.surface,
       borderWidth: 1, borderColor: C.border,
     },
-    optionRadio: {
-      width: 16, height: 16, borderRadius: 8,
-      borderWidth: 2, borderColor: C.textMuted, marginRight: 10,
-    },
+    optionRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: C.textMuted, marginRight: 10 },
     optionText:   { color: C.text, fontSize: 14, flex: 1 },
     resultRow:    { marginBottom: 12 },
-    resultHeader: {
-      flexDirection: 'row', justifyContent: 'space-between',
-      alignItems: 'center', marginBottom: 5,
-    },
+    resultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
     resultLabel:  { color: C.text, fontSize: 13, fontWeight: '500', flex: 1 },
     resultPct:    { color: C.textMuted, fontSize: 13, fontWeight: '600', marginLeft: 8 },
-    barTrack: {
-      height: 6, backgroundColor: C.surface,
-      borderRadius: 4, overflow: 'hidden', marginBottom: 4,
-    },
-    barFill:     { height: 6, borderRadius: 4, backgroundColor: C.border },
-    resultCount: { fontSize: 11, color: C.textMuted },
-    totalText:   { fontSize: 11, color: C.textMuted, marginTop: 4 },
+    barTrack:     { height: 6, backgroundColor: C.surface, borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+    barFill:      { height: 6, borderRadius: 4, backgroundColor: C.border },
+    resultCount:  { fontSize: 11, color: C.textMuted },
+    totalText:    { fontSize: 11, color: C.textMuted, marginTop: 4 },
   }), [C]);
 
   const { data, isLoading, isError } = usePollResponses(post.id, userId);
   const { mutateAsync: submitVote, isPending: isSubmitting } = useSubmitPollResponse(post.id);
   const [pendingOptionId, setPendingOptionId] = useState<string | null>(null);
 
-  const hasVoted    = data?.hasVoted   ?? false;
-  const myOptionId  = data?.myOptionId ?? pendingOptionId;
-  const options     = data?.options    ?? [];
-  const totalVotes  = options.reduce((sum, o) => sum + o.responseCount, 0);
+  const hasVoted   = data?.hasVoted   ?? false;
+  const myOptionId = data?.myOptionId ?? pendingOptionId;
+  const options    = data?.options    ?? [];
+  const totalVotes = options.reduce((sum, o) => sum + o.responseCount, 0);
   const showResults = hasVoted || !!pendingOptionId;
 
   const handleVote = async (optionId: string) => {
@@ -521,28 +527,15 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
             <View key={opt.id} style={pStyles.resultRow}>
               <View style={pStyles.resultHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                  {isMyVote && (
-                    <Ionicons name="checkmark-circle" size={14} color={C.green} style={{ marginRight: 5 }} />
-                  )}
-                  <Text style={[pStyles.resultLabel, isMyVote && { color: C.green }]} numberOfLines={1}>
-                    {opt.option_text}
-                  </Text>
+                  {isMyVote && <Ionicons name="checkmark-circle" size={14} color={C.green} style={{ marginRight: 5 }} />}
+                  <Text style={[pStyles.resultLabel, isMyVote && { color: C.green }]} numberOfLines={1}>{opt.option_text}</Text>
                 </View>
-                <Text style={[pStyles.resultPct, isLeading && { color: C.green, fontWeight: '700' }]}>
-                  {pct}%
-                </Text>
+                <Text style={[pStyles.resultPct, isLeading && { color: C.green, fontWeight: '700' }]}>{pct}%</Text>
               </View>
               <View style={pStyles.barTrack}>
-                <View style={[
-                  pStyles.barFill,
-                  { width: `${pct}%` },
-                  isMyVote  && { backgroundColor: 'rgba(27,98,53,0.30)' },
-                  isLeading && { backgroundColor: C.green },
-                ]} />
+                <View style={[pStyles.barFill, { width: `${pct}%` }, isMyVote && { backgroundColor: 'rgba(27,98,53,0.30)' }, isLeading && { backgroundColor: C.green }]} />
               </View>
-              <Text style={pStyles.resultCount}>
-                {opt.responseCount} {opt.responseCount === 1 ? 'response' : 'responses'}
-              </Text>
+              <Text style={pStyles.resultCount}>{opt.responseCount} {opt.responseCount === 1 ? 'response' : 'responses'}</Text>
             </View>
           );
         }
@@ -550,10 +543,7 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
         return (
           <Pressable
             key={opt.id}
-            style={({ pressed }) => [
-              pStyles.optionBtn,
-              !isSubmitting && pressed && { opacity: 0.7 },
-            ]}
+            style={({ pressed }) => [pStyles.optionBtn, !isSubmitting && pressed && { opacity: 0.7 }]}
             onPress={() => handleVote(opt.id)}
             disabled={isSubmitting}
           >
@@ -574,15 +564,17 @@ const PollVoter: React.FC<{ post: RawPost; userId: string | null }> = ({ post, u
 };
 
 // =============================================================================
-// POST CARD
+// POST CARD — COMMENT ROW
+// ✅ CHANGE: Added userName prop — replaces hardcoded "AN" in reply input avatar
 // =============================================================================
 
 const CommentRow: React.FC<{
-  comment: CommentType;
-  userId: string | null;
-  postId: string;
-  depth?: number;
-}> = ({ comment, userId, postId, depth = 0 }) => {
+  comment:  CommentType;
+  userId:   string | null;
+  userName: string;           // ← NEW
+  postId:   string;
+  depth?:   number;
+}> = ({ comment, userId, userName, postId, depth = 0 }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
 
@@ -642,8 +634,9 @@ const CommentRow: React.FC<{
 
       {replyVisible && (
         <View style={[S.feed.commentInput, { marginLeft: 28, marginTop: 6 }]}>
+          {/* ✅ CHANGE: Real initials instead of hardcoded "AN" */}
           <View style={S.feed.commentAvatar}>
-            <Text style={S.feed.commentAvatarText}>AN</Text>
+            <Text style={S.feed.commentAvatarText}>{userName ? toInitials(userName) : 'AN'}</Text>
           </View>
           <View style={S.feed.commentInputBox}>
             <TextInput
@@ -657,10 +650,7 @@ const CommentRow: React.FC<{
             />
           </View>
           <Pressable
-            style={({ pressed }) => [
-              S.feed.commentSendBtn,
-              !isSending && pressed && { opacity: 0.85 },
-            ]}
+            style={({ pressed }) => [S.feed.commentSendBtn, !isSending && pressed && { opacity: 0.85 }]}
             onPress={handleReply}
             disabled={isSending}
           >
@@ -672,16 +662,26 @@ const CommentRow: React.FC<{
         </View>
       )}
 
+      {/* ✅ CHANGE: Pass userName down to nested replies */}
       {comment.replies.map((reply, idx) => (
         <View key={reply.id} style={{ marginTop: idx === 0 ? 8 : 6 }}>
-          <CommentRow comment={reply} userId={userId} postId={postId} depth={1} />
+          <CommentRow comment={reply} userId={userId} userName={userName} postId={postId} depth={1} />
         </View>
       ))}
     </View>
   );
 };
 
-const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, userId }) => {
+// =============================================================================
+// POST CARD
+// ✅ CHANGE: Added userName prop — passes to CommentRow + fixes main input avatar
+// =============================================================================
+
+const PostCard: React.FC<{
+  post:     RawPost;
+  userId:   string | null;
+  userName: string;           // ← NEW
+}> = ({ post, userId, userName }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
 
@@ -692,10 +692,10 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
   const authorInitials = toInitials(authorLabel);
   const roleLabel      = 'Official';
 
-  const { data: likesData }              = useLikes(post.id, userId);
+  const { data: likesData } = useLikes(post.id, userId);
   const { mutateAsync: toggleLike, isPending: isTogglingLike } = useToggleLike(post.id);
 
-  const likeCount = likesData?.count   ?? 0;
+  const likeCount = likesData?.count    ?? 0;
   const hasLiked  = likesData?.hasLiked ?? false;
   const myLikeId  = likesData?.myLikeId ?? null;
 
@@ -734,9 +734,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
           <Text style={S.feed.postAuthor}>{authorLabel}</Text>
           <Text style={S.feed.postTime}>{roleLabel} · {timeAgo(post.created_at)}</Text>
         </View>
-        <View style={[S.shared.badge, {
-          backgroundColor: post.type === 'poll' ? C.surface2 : C.surface, // THERE IS NO GREENGLOW
-        }]}>
+        <View style={[S.shared.badge, { backgroundColor: post.type === 'poll' ? C.surface2 : C.surface }]}>
           <Text style={[S.shared.badgeText, { color: post.type === 'poll' ? C.green : C.textMuted }]}>
             {post.type === 'poll' ? 'Poll' : 'Notice'}
           </Text>
@@ -755,11 +753,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
           onPress={handleLike}
           disabled={isTogglingLike}
         >
-          <Ionicons
-            name={hasLiked ? 'heart' : 'heart-outline'}
-            size={18}
-            color={hasLiked ? C.green : C.textSub}
-          />
+          <Ionicons name={hasLiked ? 'heart' : 'heart-outline'} size={18} color={hasLiked ? C.green : C.textSub} />
           <Text style={S.feed.postActionText}>{likeCount}</Text>
         </Pressable>
 
@@ -783,14 +777,16 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
               No comments yet. Be the first!
             </Text>
           ) : (
+            // ✅ CHANGE: Pass userName to CommentRow
             comments.map(c => (
-              <CommentRow key={c.id} comment={c} userId={userId} postId={post.id} />
+              <CommentRow key={c.id} comment={c} userId={userId} userName={userName} postId={post.id} />
             ))
           )}
 
           <View style={S.feed.commentInput}>
+            {/* ✅ CHANGE: Real initials instead of hardcoded "AN" */}
             <View style={S.feed.commentAvatar}>
-              <Text style={S.feed.commentAvatarText}>AN</Text>
+              <Text style={S.feed.commentAvatarText}>{userName ? toInitials(userName) : 'AN'}</Text>
             </View>
             <View style={S.feed.commentInputBox}>
               <TextInput
@@ -803,10 +799,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
               />
             </View>
             <Pressable
-              style={({ pressed }) => [
-                S.feed.commentSendBtn,
-                !isSendingComment && pressed && { opacity: 0.85 },
-              ]}
+              style={({ pressed }) => [S.feed.commentSendBtn, !isSendingComment && pressed && { opacity: 0.85 }]}
               onPress={handleSubmitComment}
               disabled={isSendingComment}
             >
@@ -824,6 +817,7 @@ const PostCard: React.FC<{ post: RawPost; userId: string | null }> = ({ post, us
 
 // =============================================================================
 // ANNOUNCEMENT FEED
+// ✅ CHANGE: Added userName prop — passes to PostCard
 // =============================================================================
 
 type FeedTab = 'all' | 'announcements' | 'polls';
@@ -834,7 +828,10 @@ const FEED_TABS: { key: FeedTab; label: string; icon: keyof typeof Ionicons.glyp
   { key: 'polls',         label: 'Polls',   icon: 'bar-chart-outline' },
 ];
 
-const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
+const AnnouncementFeed: React.FC<{
+  userId:   string | null;
+  userName: string;           // ← NEW
+}> = ({ userId, userName }) => {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
 
@@ -897,8 +894,9 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
         </View>
       )}
 
+      {/* ✅ CHANGE: Pass userName to PostCard */}
       {!isLoading && !isError && filteredPosts.map(post => (
-        <PostCard key={post.id} post={post} userId={userId} />
+        <PostCard key={post.id} post={post} userId={userId} userName={userName} />
       ))}
     </View>
   );
@@ -906,6 +904,10 @@ const AnnouncementFeed: React.FC<{ userId: string | null }> = ({ userId }) => {
 
 // =============================================================================
 // MAIN SCREEN
+// ✅ CHANGES:
+//   - Added userName state
+//   - resolveUser fetches name from Users table alongside auth id
+//   - userName passed through renderSection → AnnouncementFeed
 // =============================================================================
 
 type SectionKey = 'countdown' | 'live' | 'feed';
@@ -918,11 +920,14 @@ const SECTIONS: { type: SectionKey }[] = [
 export default function DashboardScreen() {
   const C = useThemeColors();
   const S = useMemo(() => makeStyles(C), [C]);
-  const isDark = useThemeStore(s => s.isDark);
+  const isDark      = useThemeStore(s => s.isDark);
   const toggleTheme = useThemeStore(s => s.toggleTheme);
-  const [userId, setUserId]             = useState<string | null>(null);
+
+  // ✅ CHANGE: Added userName alongside userId
+  const [userId,       setUserId]       = useState<string | null>(null);
+  const [userName,     setUserName]     = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey]     = useState(0);
+  const [refreshKey,   setRefreshKey]   = useState(0);
   const { settings } = useSettings();
 
   const handleRefresh = async () => {
@@ -932,10 +937,26 @@ export default function DashboardScreen() {
     setIsRefreshing(false);
   };
 
+  // ✅ CHANGE: resolveUser fetches name from public.Users using auth_id
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+    const resolveUser = async (authId: string | null) => {
+      setUserId(authId);
+      if (authId) {
+        const { data: profile } = await supabase
+          .from('Users')
+          .select('name')
+          .eq('auth_id', authId)
+          .single();
+        setUserName(profile?.name ?? '');
+      } else {
+        setUserName('');
+      }
+    };
+
+    supabase.auth.getUser().then(({ data }) => resolveUser(data.user?.id ?? null));
+
     const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUserId(session?.user?.id ?? null);
+      resolveUser(session?.user?.id ?? null);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
@@ -957,7 +978,8 @@ export default function DashboardScreen() {
       case 'feed':
         return (
           <View style={{ marginTop: 8 }}>
-            <AnnouncementFeed userId={userId} />
+            {/* ✅ CHANGE: Pass userName to AnnouncementFeed */}
+            <AnnouncementFeed userId={userId} userName={userName} />
           </View>
         );
 
@@ -969,7 +991,7 @@ export default function DashboardScreen() {
   return (
     <SafeAreaView style={S.screen.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={C.bg} />
-        <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
         <View style={S.screen.header}>
           <View>
             <Text style={S.screen.headerLogoText}>AnimoQuorum</Text>
@@ -1015,7 +1037,7 @@ export default function DashboardScreen() {
             />
           }
         />
-        </View>
+      </View>
     </SafeAreaView>
   );
 }
